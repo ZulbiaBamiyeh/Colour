@@ -28,6 +28,7 @@
   --shadow: 0 6px 18px rgba(90, 40, 0, 0.18);
   --glow: rgba(240, 122, 18, 0.55);
   --scrim: rgba(60, 30, 10, 0.45);
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -48,6 +49,7 @@
     --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     --glow: rgba(255, 154, 60, 0.6);
     --scrim: rgba(8, 4, 16, 0.6);
+    color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
@@ -55,7 +57,7 @@
   --panel-2: rgba(48, 28, 74, 0.95); --panel-line: rgba(255, 200, 120, 0.3); --gold: #ffc85a;
   --gold-hi: #ffdd8f; --accent: #ff9a3c; --good: #7be08f; --bad: #ff7b6e; --hp-track: #3a2650;
   --hp-fill-a: #5fd474; --hp-fill-b: #2f9e4a; --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --glow: rgba(255, 154, 60, 0.6); --scrim: rgba(8, 4, 16, 0.6);
+  --glow: rgba(255, 154, 60, 0.6); --scrim: rgba(8, 4, 16, 0.6); color-scheme: dark;
 }
 
 /* ===================== BASE ===================== */
@@ -69,8 +71,8 @@ html, body {
 #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #ui {
   position: fixed; inset: 0; pointer-events: none;
-  padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
-           max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  padding: max(8px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+           max(10px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   display: flex; justify-content: center;
 }
 .screen {
@@ -1066,8 +1068,11 @@ if (typeof module !== 'undefined') {
     cardCost, sellValue, cardNums, cardLine, cardDesc, opponentHp };
 }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script type="module">
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
+// three.js r160: UMD global from cdnjs, falling back to the ES module builds
+const THREE = window.THREE || await import('https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js')
+  .catch(() => import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js'));
 /* =====================================================================
    CANVAS ART — every texture & icon is generated here (no images)
    Glyphs are drawn in a unit box [-1, 1]; caller sets transform,
