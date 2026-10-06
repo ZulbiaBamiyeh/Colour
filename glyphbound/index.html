@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Glyphbound</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@500;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a night scriptorium. Your scroll on the left, the duel in the middle, the enemy's scroll on the right;
+   on phones it stacks arena → your scroll → enemy scroll → log. Single dark theme by design. */
+:root {
+  --night: #11121f;        /* page ground: indigo-black */
+  --desk: #191b2d;         /* panels */
+  --desk-2: #22253b;       /* raised slots */
+  --rule: #34385a;         /* hairlines */
+  --vellum: #ece3cf;       /* main text */
+  --faded: #a59f93;        /* secondary text */
+  --gilt: #e0b65a;         /* cursor and the one accent */
+  --mana: #5b6cff;
+  --good: #8fe08a;
+  --bad: #ef6a6a;
+  --s-weapon: #c9c3b6; --s-fire: #ef7a3c; --s-frost: #7fcaf0; --s-venom: #93c95a; --s-desert: #dbb470;
+  --s-holy: #f2d67c; --s-shield: #8fd0ff; --s-thorn: #f08cb0; --s-lunar: #9aa8ff; --s-mana: #7d8bff; --s-heal: #8fe08a;
+  --f-display: "Grenze Gotisch", "UnifrakturMaguntia", Georgia, serif;
+  --f-body: "Alegreya Sans", "Gill Sans", "Trebuchet MS", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 6px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--night); color: var(--vellum); }
+body { font: 15px/1.45 var(--f-body); padding-inline: 16px; padding-block: 12px 40px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--gilt); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- header ---------- */
+header { max-width: 1280px; margin: 0 auto 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+h1 { font: 700 34px/1 var(--f-display); margin: 0; letter-spacing: .5px; color: var(--gilt); }
+.tag { color: var(--faded); font-style: italic; }
+.ladder { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.rung { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--rule); background: var(--desk); font: 600 12px var(--f-mono); color: var(--faded); }
+.rung.solved { border-color: var(--gilt); color: var(--gilt); }
+.rung.on { background: var(--gilt); color: var(--night); border-color: var(--gilt); }
+.rung:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ---------- level card ---------- */
+.brief { max-width: 1280px; margin: 0 auto 14px; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: end;
+  padding: 12px 16px; background: var(--desk); border: 1px solid var(--rule); border-radius: var(--r); }
+.brief h2 { font: 500 26px/1.1 var(--f-display); margin: 0; text-wrap: balance; }
+.brief .lesson { margin: 2px 0 0; max-width: 70ch; }
+.brief .hint { margin: 0; color: var(--faded); font-size: 14px; max-width: 70ch; }
+.brief .hint b { color: var(--gilt); font-weight: 500; }
+.hintbtn { background: none; border: 0; padding: 0; color: var(--gilt); text-decoration: underline; text-underline-offset: 3px; font-size: 14px; }
+.eyebrow { font: 600 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--faded); }
+
+/* ---------- main grid ---------- */
+main { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, .85fr); gap: 16px; align-items: start; }
+.col { display: grid; gap: 14px; min-width: 0; }
+.panel { background: var(--desk); border: 1px solid var(--rule); border-radius: var(--r); padding: 12px; min-width: 0; }
+.panel > h3 { font: 600 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--faded); margin: 0 0 10px; display: flex; justify-content: space-between; gap: 8px; }
+@media (max-width: 1020px) {
+  main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  #col-arena { grid-column: 1 / -1; order: -1; }
+}
+@media (max-width: 680px) {
+  main { grid-template-columns: minmax(0, 1fr); }
+  .brief { grid-template-columns: 1fr; }
+  h1 { font-size: 28px; }
+}
+
+/* ---------- glyphs ---------- */
+.g { --c: var(--s-weapon); display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 2px 8px; border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); background: color-mix(in srgb, var(--c) 14%, var(--desk-2));
+  color: var(--vellum); font-size: 14px; white-space: nowrap; }
+.g.verb { font-weight: 700; border-left: 4px solid var(--c); }
+.g.target { border-radius: 14px; --c: var(--faded); }
+.g.cond { --c: var(--gilt); background: color-mix(in srgb, var(--gilt) 8%, var(--desk-2)); font-family: var(--f-mono); font-size: 12.5px; }
+.g.flow { --c: var(--mana); font-style: italic; }
+.g.empty { border-style: dashed; background: transparent; color: var(--faded); --c: var(--rule); font-weight: 400; border-left-width: 1px; }
+.g.add { border-style: dashed; background: transparent; color: var(--faded); --c: var(--rule); font-size: 12.5px; }
+button.g:hover:not(:disabled) { filter: brightness(1.18); }
+.g .n { font: 600 11px var(--f-mono); color: var(--faded); }
+
+/* ---------- pouch ---------- */
+.pouch { display: flex; flex-wrap: wrap; gap: 6px; }
+.pouch .g.spent { opacity: .4; }
+.info { margin-top: 10px; font-size: 13.5px; color: var(--faded); min-height: 1.4em; }
+.info b { color: var(--vellum); }
+
+/* ---------- scroll lines ---------- */
+.scroll { display: grid; gap: 6px; counter-reset: ln; }
+.line { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  padding: 6px 8px; border: 1px solid var(--rule); border-radius: 5px; background: color-mix(in srgb, var(--desk-2) 60%, var(--desk)); transition: background .15s, border-color .15s; }
+.line .num { font: 600 12px var(--f-mono); color: var(--faded); text-align: right; }
+.line .body { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
+.line .arrow { color: var(--faded); padding: 0 2px; }
+.line .meta { font: 11px var(--f-mono); color: var(--faded); text-align: right; white-space: nowrap; }
+.line .meta .bad { color: var(--bad); }
+.line .x { background: none; border: 0; color: var(--faded); font-size: 16px; padding: 0 4px; }
+.line .bar { position: absolute; left: 0; bottom: -1px; height: 2px; background: var(--gilt); width: 0; border-radius: 2px; }
+.line.cur { border-color: var(--gilt); box-shadow: 0 0 0 1px var(--gilt), 0 0 14px -4px var(--gilt); }
+.line.flash-cast { background: color-mix(in srgb, var(--good) 22%, var(--desk-2)); }
+.line.flash-skip { background: color-mix(in srgb, #000 30%, var(--desk)); }
+.line.flash-skip .body { opacity: .5; }
+.line.wait { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
+.line.invalid { border-color: color-mix(in srgb, var(--bad) 60%, var(--rule)); }
+.line .stats { font: 11px var(--f-mono); color: var(--faded); }
+.locked .line .body button { pointer-events: none; }
+
+/* ---------- arena ---------- */
+.fighter { position: relative; display: grid; gap: 6px; padding: 12px; border-radius: var(--r); background: var(--desk); border: 1px solid var(--rule); overflow: hidden; }
+.fighter.frozen { background: color-mix(in srgb, var(--s-frost) 16%, var(--desk)); border-color: var(--s-frost); }
+.fighter .top { display: flex; align-items: baseline; gap: 10px; }
+.fighter .who { font: 500 22px/1 var(--f-display); }
+.fighter .wpn { color: var(--faded); font-size: 13px; }
+.fighter .spd { margin-left: auto; font: 12px var(--f-mono); color: var(--faded); }
+.meter { position: relative; height: 16px; border-radius: 3px; background: color-mix(in srgb, #000 35%, var(--desk)); overflow: hidden; }
+.meter .fill { position: absolute; inset: 0 auto 0 0; transition: width .12s linear; }
+.meter .hp { background: linear-gradient(90deg, #5aa65e, var(--good)); }
+.meter .sh { background: repeating-linear-gradient(135deg, var(--s-shield) 0 4px, color-mix(in srgb, var(--s-shield) 70%, #000) 4px 8px); opacity: .9; }
+.meter .label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 600 11.5px var(--f-mono); color: var(--vellum); text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.meter.mana { height: 10px; }
+.meter.mana .fill { background: var(--mana); }
+.meter.mana .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), var(--desk) calc(25% - 1px) 25%); }
+.meter.mana .label { color: var(--vellum); justify-content: flex-end; padding-right: 4px; font-size: 9.5px; text-shadow: none; }
+.frost { display: flex; gap: 3px; align-items: center; font: 11px var(--f-mono); color: var(--faded); }
+.frost i { width: 10px; height: 6px; border-radius: 1px; background: var(--rule); }
+.frost i.on { background: var(--s-frost); }
+.frost span { margin-left: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
+.chip { --c: var(--faded); font: 600 11.5px var(--f-mono); padding: 1px 6px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); color: var(--c); }
+.floats { position: absolute; inset: 0; pointer-events: none; }
+.float { position: absolute; right: 14px; top: 34px; font: 700 15px var(--f-mono); animation: rise 1.1s ease-out forwards; text-shadow: 0 1px 2px #000; }
+@keyframes rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-30px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .float { animation-duration: .01s; } .meter .fill { transition: none; } }
+.vs { display: flex; align-items: center; gap: 10px; font: 12px var(--f-mono); color: var(--faded); }
+.vs .clock { font-size: 20px; color: var(--vellum); }
+.vs .fatigue { color: #f0c878; }
+.timeline { flex: 1; height: 4px; background: var(--rule); border-radius: 2px; position: relative; }
+.timeline .tfill { position: absolute; inset: 0 auto 0 0; background: var(--gilt); border-radius: 2px; }
+.timeline .fmark { position: absolute; left: 33.3%; top: -3px; width: 2px; height: 10px; background: #f0c878; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { padding: 8px 14px; border-radius: 5px; border: 1px solid var(--rule); background: var(--desk-2); font-weight: 500; }
+.btn.primary { background: var(--gilt); color: #1a1408; border-color: var(--gilt); font-weight: 700; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 5px; overflow: hidden; }
+.seg button { border: 0; background: var(--desk-2); padding: 7px 10px; font: 12px var(--f-mono); }
+.seg button.on { background: var(--rule); color: var(--gilt); }
+
+.result { display: grid; gap: 8px; }
+.result .verdict { font: 700 28px/1 var(--f-display); }
+.result .verdict.win { color: var(--gilt); }
+.result .verdict.loss { color: var(--bad); }
+.result .verdict.draw { color: var(--faded); }
+.rep { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; font-size: 13px; }
+.rep h4 { margin: 0 0 4px; font: 600 11px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faded); }
+.rep table { width: 100%; border-collapse: collapse; }
+.rep td { padding: 1px 0; }
+.rep td:last-child { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+.log { max-height: 280px; overflow-y: auto; font-size: 13px; display: grid; gap: 2px; }
+.log div { padding: 1px 0; border-bottom: 1px solid color-mix(in srgb, var(--rule) 40%, transparent); }
+.log .t { font: 11px var(--f-mono); color: var(--faded); display: inline-block; width: 42px; }
+.log .A { color: var(--vellum); }
+.log .B { color: #d9b9a9; }
+.log .sys { color: var(--faded); font-style: italic; }
+
+/* ---------- picker ---------- */
+.picker { position: fixed; z-index: 20; max-width: min(340px, calc(100vw - 32px)); padding: 10px; border-radius: var(--r);
+  background: var(--desk-2); border: 1px solid var(--gilt); box-shadow: 0 10px 30px rgba(0,0,0,.55); display: grid; gap: 8px; }
+.picker .opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.picker .desc { font-size: 12.5px; color: var(--faded); }
+.picker .g:disabled { opacity: .35; cursor: not-allowed; }
+.scrim { position: fixed; inset: 0; z-index: 19; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Glyphbound</h1>
+  <span class="tag">You don't fight. You write the scroll your hero reads.</span>
+  <nav class="ladder" id="ladder" aria-label="Levels"></nav>
+</header>
+
+<section class="brief" id="brief"></section>
+
+<main>
+  <div class="col" id="col-mine">
+    <section class="panel">
+      <h3><span>Your scroll</span><span id="mine-sum" class="mono"></span></h3>
+      <div class="scroll" id="mine"></div>
+    </section>
+    <section class="panel">
+      <h3><span>Glyph pouch</span><span>tap to read</span></h3>
+      <div class="pouch" id="pouch"></div>
+      <div class="info" id="info">Tap a dashed slot in your scroll to inscribe a glyph.</div>
+    </section>
+  </div>
+
+  <div class="col" id="col-arena">
+    <section class="fighter" id="fB"></section>
+    <div class="vs"><span class="clock mono" id="clock">0.0s</span><div class="timeline"><div class="tfill" id="tfill"></div><div class="fmark" title="Fatigue starts at 30s"></div></div><span id="phase">90s limit</span></div>
+    <section class="fighter" id="fA"></section>
+    <div class="controls">
+      <button class="btn primary" id="fight">Fight</button>
+      <button class="btn" id="pause" disabled>Pause</button>
+      <button class="btn" id="skip" disabled>Skip to end</button>
+      <div class="seg" id="speeds" role="group" aria-label="Playback speed"></div>
+    </div>
+    <section class="panel result" id="result" hidden></section>
+  </div>
+
+  <div class="col" id="col-enemy">
+    <section class="panel">
+      <h3><span id="enemy-title">Enemy scroll</span><span id="enemy-of" class="mono"></span></h3>
+      <div class="scroll locked" id="theirs"></div>
+    </section>
+    <section class="panel">
+      <h3><span>Battle log</span></h3>
+      <div class="log" id="log"><div class="sys">The log fills in as the duel plays.</div></div>
+    </section>
+  </div>
+</main>
+
+<script src="engine.js"></script>
+<script src="levels.js"></script>
+<script>
+(() => {
+'use strict';
+const { simulate, VERBS, lineIssue, RULES } = GB;
+const { LEVELS, PLAYER, VALUES } = GB_LEVELS;
+const $ = id => document.getElementById(id);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+const STAT_NAME = { hp: 'HP', mana: 'Mana', shield: 'Shield', burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', thorns: 'Thorns', regen: 'Regen', frozen: 'Frozen' };
+const STAT_COLOR = { burn: '--s-fire', heat: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', thorns: '--s-thorn', regen: '--s-lunar', luck: '--s-heal' };
+const STATUS_TEXT = {
+  burn: `Burn: ${RULES.BURN_PER} damage per stack per second. Hits Shield first. Cuts healing by 20%. Never wears off.`,
+  poison: `Poison: 1 damage per stack every ${RULES.POISON_EVERY}s. Ignores Shield. Never wears off.`,
+  frost: 'Frost: at 10 you are Frozen for 3s, then immune for 2s.', slow: 'Slow: casts take longer. Cancels Heat 1:1.',
+  sand: 'Sand: weapon attacks may miss.', heat: 'Heat: casts are faster.', thorns: 'Thorns: weapon hits on you hurt the attacker.',
+  regen: `Regen: heals 1 per stack every ${RULES.REGEN_EVERY}s.`,
+};
+const schoolVar = v => `var(--s-${VERBS[v].school})`;
+
+/* ---------------- state ---------------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('glyphbound:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('glyphbound:' + k, JSON.stringify(v)); } catch {} },
+};
+const hot = window.claude?.hot?.data;
+const S = {
+  level: hot?.level ?? store.get('level', 0),
+  solved: hot?.solved ?? store.get('solved', []),
+  scrolls: hot?.scrolls ?? store.get('scrolls', {}),
+  speed: store.get('speed', 1),
+  hintShown: false,
+};
+window.claude?.hot?.snapshot?.(() => ({ level: S.level, solved: S.solved, scrolls: S.scrolls }));
+const save = () => { store.set('level', S.level); store.set('solved', S.solved); store.set('scrolls', S.scrolls); };
+const lv = () => LEVELS[S.level];
+const unlocked = i => i === 0 || S.solved.includes(LEVELS[i - 1].id) || S.solved.includes(LEVELS[i].id);
+
+function myScroll() {
+  const L = lv();
+  let sc = S.scrolls[L.id];
+  if (!sc || sc.length !== L.pouch.lines) {
+    sc = Array.from({ length: L.pouch.lines }, (_, i) => (sc && sc[i]) || null);
+    if (!sc.some(Boolean)) sc[0] = { verb: 'attack', target: 'enemy' };
+    S.scrolls[L.id] = sc;
+  }
+  return sc;
+}
+function used(kind) {
+  let n = 0;
+  for (const l of myScroll()) if (l) { if (kind === 'channel' ? l.channel : l.verb === kind) n++; }
+  return n;
+}
+const left = kind => (kind === 'channel' ? lv().pouch.channel : lv().pouch.verbs[kind] || 0) - used(kind);
+
+/* ---------------- playback state ---------------- */
+let PB = null;   // { fights:[{res, enemy}], idx, simT, evI, playing, done }
+
+/* ---------------- render: ladder + brief ---------------- */
+function renderLadder() {
+  const nav = $('ladder'); nav.innerHTML = '';
+  LEVELS.forEach((L, i) => {
+    const b = el('button', 'rung' + (i === S.level ? ' on' : '') + (S.solved.includes(L.id) ? ' solved' : ''), String(i + 1));
+    b.title = L.title + (S.solved.includes(L.id) ? ' (solved)' : '');
+    b.disabled = !unlocked(i) || !!(PB && PB.playing);
+    b.onclick = () => goLevel(i);
+    nav.appendChild(b);
+  });
+}
+function renderBrief() {
+  const L = lv();
+  const b = $('brief');
+  b.innerHTML = `<div><div class="eyebrow">Level ${S.level + 1} of ${LEVELS.length}${S.solved.includes(L.id) ? ' · solved' : ''}</div>
+    <h2>${esc(L.title)}</h2><p class="lesson">${esc(L.lesson)}</p></div>
+    <p class="hint" id="hint">${S.hintShown ? '<b>Hint:</b> ' + esc(L.hint) : '<button class="hintbtn" id="hintbtn">Show a hint</button>'}</p>`;
+  const hb = $('hintbtn'); if (hb) hb.onclick = () => { S.hintShown = true; renderBrief(); };
+}
+
+/* ---------------- glyph HTML ---------------- */
+function verbGlyph(v, extra = '') { return `<span class="g verb" style="--c:${schoolVar(v)}">${VERBS[v].name}${extra}</span>`; }
+function condText(c) {
+  return `${c.op === 'unless' ? 'Unless' : 'If'} ${c.subj === 'self' ? 'Self' : 'Enemy'} ${STAT_NAME[c.stat]} ${c.cmp === 'has' ? 'Has' : c.cmp}${c.cmp !== 'has' && c.val != null ? ' ' + c.val + (c.stat === 'hp' ? '%' : '') : ''}`;
+}
+
+/* ---------------- render: scrolls ---------------- */
+function lineMeta(line) {
+  const issue = lineIssue(line);
+  if (issue === 'empty') return '';
+  if (issue) return `<span class="bad">${issue}</span>`;
+  const V = VERBS[line.verb];
+  const cast = V.cast === 'weapon' ? 'weapon' : V.cast + 's';
+  return `${V.mana ? V.mana + ' mana' : 'free'} · ${cast}`;
+}
+
+function renderMine() {
+  const box = $('mine'); box.innerHTML = '';
+  const sc = myScroll(), P = lv().pouch, locked = !!(PB && !PB.done);
+  box.classList.toggle('locked', locked);
+  sc.forEach((line, i) => {
+    const row = el('div', 'line');
+    row.dataset.i = i;
+    const issue = lineIssue(line);
+    if (issue && issue !== 'empty') row.classList.add('invalid');
+    row.appendChild(el('span', 'num', String(i + 1)));
+    const body = el('div', 'body');
+    const L = line || {};
+    const slot = (cls, html, kind, title) => {
+      const b = el('button', 'g ' + cls, html);
+      b.type = 'button';
+      if (title) b.title = title;
+      b.onclick = ev => openPicker(ev.currentTarget, i, kind);
+      body.appendChild(b);
+    };
+    if (L.cond) {
+      const c = L.cond;
+      slot('cond', c.op === 'unless' ? 'Unless' : 'If', 'op');
+      slot('cond' + (c.subj ? '' : ' empty'), c.subj ? (c.subj === 'self' ? 'Self' : 'Enemy') : 'who', 'subj');
+      slot('cond' + (c.stat ? '' : ' empty'), c.stat ? STAT_NAME[c.stat] : 'what', 'stat');
+      slot('cond' + (c.cmp ? '' : ' empty'), c.cmp ? (c.cmp === 'has' ? 'Has' : c.cmp) : '< > Has', 'cmp');
+      if (c.cmp !== 'has') slot('cond' + (c.val != null ? '' : ' empty'), c.val != null ? c.val + (c.stat === 'hp' ? '%' : '') : 'value', 'val');
+      body.appendChild(el('span', 'arrow', '→'));
+    } else if (P.cond && !locked) {
+      slot('add', '+ if', 'addcond', 'Add a condition');
+    }
+    if (L.channel) slot('flow', 'Channel', 'channel', 'Wait for mana instead of skipping');
+    else if (P.channel && !locked && left('channel') > 0) slot('add', '+ channel', 'channel', 'Wait for mana instead of skipping');
+    slot('verb' + (L.verb ? '' : ' empty'), L.verb ? VERBS[L.verb].name : 'verb', 'verb');
+    if (L.verb) body.lastChild.style.setProperty('--c', schoolVar(L.verb));
+    slot('target' + (L.target ? '' : ' empty'), L.target ? (L.target === 'self' ? 'Self' : 'Enemy') : 'target', 'target');
+    row.appendChild(body);
+    const side = el('div', 'meta');
+    side.innerHTML = lineMeta(line) + `<div class="stats" data-stats></div>`;
+    if (line && !locked) {
+      const x = el('button', 'x', '×'); x.type = 'button'; x.title = 'Erase line'; x.setAttribute('aria-label', `Erase line ${i + 1}`);
+      x.onclick = () => { sc[i] = null; changed(); };
+      side.prepend(x);
+    }
+    row.appendChild(side);
+    row.appendChild(el('div', 'bar'));
+    box.appendChild(row);
+  });
+  const valid = sc.filter(l => !lineIssue(l)).length;
+  $('mine-sum').textContent = `${valid}/${sc.length} lines`;
+}
+
+function renderTheirs(idx = 0) {
+  const L = lv(), en = L.enemies[idx];
+  $('enemy-title').textContent = en.name + "'s scroll";
+  $('enemy-of').textContent = L.enemies.length > 1 ? `${idx + 1} of ${L.enemies.length}` : '';
+  const box = $('theirs'); box.innerHTML = '';
+  en.scroll.forEach((line, i) => {
+    const row = el('div', 'line'); row.dataset.i = i;
+    row.appendChild(el('span', 'num', String(i + 1)));
+    const body = el('div', 'body');
+    if (line.cond) body.insertAdjacentHTML('beforeend', `<span class="g cond">${esc(condText(line.cond))}</span><span class="arrow">→</span>`);
+    if (line.channel) body.insertAdjacentHTML('beforeend', `<span class="g flow">Channel</span>`);
+    body.insertAdjacentHTML('beforeend', verbGlyph(line.verb) + `<span class="g target">${line.target === 'self' ? 'Self' : 'Enemy'}</span>`);
+    row.appendChild(body);
+    const side = el('div', 'meta'); side.innerHTML = lineMeta(line) + `<div class="stats" data-stats></div>`;
+    row.appendChild(side);
+    row.appendChild(el('div', 'bar'));
+    box.appendChild(row);
+  });
+}
+
+function renderPouch() {
+  const P = lv().pouch, box = $('pouch'); box.innerHTML = '';
+  const add = (html, cls, c, text) => {
+    const b = el('button', 'g ' + cls, html); b.type = 'button';
+    if (c) b.style.setProperty('--c', c);
+    b.onclick = () => { $('info').innerHTML = text; };
+    box.appendChild(b);
+  };
+  for (const [v, n] of Object.entries(P.verbs)) {
+    const l = left(v), V = VERBS[v];
+    add(`${V.name} <span class="n">${l}/${n}</span>`, 'verb' + (l <= 0 ? ' spent' : ''), schoolVar(v),
+      `<b>${V.name}</b> · ${V.mana ? V.mana + ' mana' : 'free'} · ${V.cast === 'weapon' ? 'weapon speed' : V.cast + 's cast'}. ${esc(V.text)}`);
+  }
+  if (P.channel) add(`Channel <span class="n">${left('channel')}/${P.channel}</span>`, 'flow' + (left('channel') <= 0 ? ' spent' : ''), null,
+    '<b>Channel</b> · If the line is unaffordable, the cursor waits for mana instead of skipping.');
+  add('Self · Enemy', 'target', null, '<b>Targets</b> · Every verb lands on its target. Ignite Self burns you, so pick carefully.');
+  if (P.cond) add('If · Unless', 'cond', null, `<b>Conditions</b> · If the condition is false the line is skipped instantly, at no cost. You can test ${P.stats.map(s => STAT_NAME[s]).join(', ')}.`);
+}
+
+/* ---------------- picker ---------------- */
+let pickerEl = null;
+function closePicker() { if (pickerEl) { pickerEl.remove(); document.querySelector('.scrim')?.remove(); pickerEl = null; } }
+function openPicker(anchor, i, kind) {
+  if (PB && !PB.done) return;
+  const sc = myScroll(), P = lv().pouch;
+  sc[i] = sc[i] || {};
+  const line = sc[i];
+  if (kind === 'addcond') { line.cond = { op: 'if' }; changed(); return; }
+  if (kind === 'channel') {
+    if (line.channel) delete line.channel; else if (left('channel') > 0) line.channel = true;
+    changed(); return;
+  }
+  closePicker();
+  const scrim = el('div', 'scrim'); scrim.onclick = closePicker; document.body.appendChild(scrim);
+  const pk = el('div', 'picker'); pk.setAttribute('role', 'dialog');
+  const opts = el('div', 'opts'); const desc = el('div', 'desc');
+  const opt = (html, onPick, { c, disabled, cls = '', hint } = {}) => {
+    const b = el('button', 'g ' + cls, html); b.type = 'button';
+    if (c) b.style.setProperty('--c', c);
+    b.disabled = !!disabled;
+    b.onclick = () => { onPick(); closePicker(); changed(); };
+    if (hint) { b.onmouseenter = b.onfocus = () => { desc.innerHTML = hint; }; }
+    opts.appendChild(b);
+  };
+  const c = line.cond;
+  if (kind === 'verb') {
+    for (const v of Object.keys(P.verbs)) {
+      const V = VERBS[v], l = left(v) + (line.verb === v ? 1 : 0);
+      opt(`${V.name} <span class="n">${V.mana || 'free'}</span>`, () => { line.verb = v; if (!line.target) line.target = ['stoke', 'heal', 'ward', 'bramble', 'moonwell', 'purify', 'meditate'].includes(v) ? 'self' : 'enemy'; },
+        { cls: 'verb', c: schoolVar(v), disabled: l <= 0, hint: `<b>${V.name}</b> · ${V.mana ? V.mana + ' mana' : 'free'} · ${V.cast === 'weapon' ? 'weapon speed' : V.cast + 's'}. ${esc(V.text)}${l <= 0 ? ' None left in your pouch.' : ''}` });
+    }
+    desc.textContent = 'Number shows the mana cost. Hover or focus a glyph to read it.';
+  } else if (kind === 'target') {
+    opt('Enemy', () => { line.target = 'enemy'; }, { cls: 'target' });
+    opt('Self', () => { line.target = 'self'; }, { cls: 'target' });
+  } else if (kind === 'op') {
+    opt('If', () => { c.op = 'if'; }, { cls: 'cond' });
+    opt('Unless', () => { c.op = 'unless'; }, { cls: 'cond' });
+    opt('Remove condition', () => { delete line.cond; }, { cls: 'add' });
+  } else if (kind === 'subj') {
+    opt('Self', () => { c.subj = 'self'; }, { cls: 'cond' });
+    opt('Enemy', () => { c.subj = 'enemy'; }, { cls: 'cond' });
+  } else if (kind === 'stat') {
+    for (const s of P.stats) opt(STAT_NAME[s], () => {
+      c.stat = s;
+      if (s === 'frozen') { c.cmp = 'has'; delete c.val; }
+      else if (c.val != null && !valuesFor(s).includes(c.val)) delete c.val;
+    }, { cls: 'cond', hint: s === 'hp' ? 'HP is compared as a percentage of max HP.' : STATUS_TEXT[s] || '' });
+  } else if (kind === 'cmp') {
+    const fr = c.stat === 'frozen';
+    opt('&lt;', () => { c.cmp = '<'; }, { cls: 'cond', disabled: fr });
+    opt('&gt;', () => { c.cmp = '>'; }, { cls: 'cond', disabled: fr });
+    opt('Has', () => { c.cmp = 'has'; delete c.val; }, { cls: 'cond', hint: 'True when the value is above zero.' });
+  } else if (kind === 'val') {
+    for (const v of valuesFor(c.stat)) opt(v + (c.stat === 'hp' ? '%' : ''), () => { c.val = v; }, { cls: 'cond' });
+  }
+  if (kind === 'verb' && line.verb) opt('Clear', () => { delete line.verb; }, { cls: 'add' });
+  pk.append(opts, desc);
+  document.body.appendChild(pk);
+  pickerEl = pk;
+  const r = anchor.getBoundingClientRect(), pr = pk.getBoundingClientRect();
+  const x = Math.max(16, Math.min(r.left, innerWidth - pr.width - 16));
+  let y = r.bottom + 6;
+  if (y + pr.height > innerHeight - 8) y = Math.max(8, r.top - pr.height - 6);
+  pk.style.left = x + 'px'; pk.style.top = y + 'px';
+  pk.querySelector('button:not(:disabled)')?.focus();
+}
+const valuesFor = stat => (!stat || stat === 'hp' || stat === 'mana' ? [25, 50, 75] : [3, 5, 10]);
+addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
+
+function changed() {
+  const sc = myScroll();
+  sc.forEach((l, i) => { if (l && !l.verb && !l.target && !l.cond && !l.channel) sc[i] = null; });
+  save(); renderMine(); renderPouch();
+  if (PB && PB.done) { PB = null; resetArena(); }
+}
+
+/* ---------------- arena ---------------- */
+function fighterShell(id, name, wpn) {
+  $(id).innerHTML = `<div class="top"><span class="who">${esc(name)}</span><span class="wpn">${esc(wpn.name)} · ${wpn.dmg} dmg / ${wpn.speed}s</span><span class="spd" data-spd></span></div>
+    <div class="meter"><div class="fill hp" data-hp></div><div class="fill sh" data-sh></div><div class="label" data-hpl></div></div>
+    <div class="meter mana"><div class="fill" data-mana></div><div class="ticks"></div><div class="label" data-manal></div></div>
+    <div class="frost" data-frost></div>
+    <div class="chips" data-chips></div>
+    <div class="floats" data-floats></div>`;
+}
+function drawFighter(id, f) {
+  const root = $(id), q = s => root.querySelector(s);
+  const total = Math.max(f.maxHp, f.hp + f.shield);
+  q('[data-hp]').style.width = (Math.max(0, f.hp) / total * 100) + '%';
+  const sh = q('[data-sh]'); sh.style.left = (Math.max(0, f.hp) / total * 100) + '%'; sh.style.width = (f.shield / total * 100) + '%';
+  q('[data-hpl]').textContent = `${Math.max(0, Math.ceil(f.hp))} / ${f.maxHp}${f.shield >= 0.5 ? `  +${Math.floor(f.shield)} shield` : ''}`;
+  q('[data-mana]').style.width = (f.mana / f.maxMana * 100) + '%';
+  q('[data-manal]').textContent = Math.floor(f.mana) + ' mana';
+  const fr = q('[data-frost]');
+  let pips = '';
+  for (let k = 0; k < RULES.FREEZE_AT; k++) pips += `<i class="${k < f.st.frost ? 'on' : ''}"></i>`;
+  fr.innerHTML = pips + `<span>${f.frozen > 0 ? 'FROZEN ' + f.frozen.toFixed(1) + 's' : f.thaw > 0 ? 'thawing ' + f.thaw.toFixed(1) + 's' : 'frost'}</span>`;
+  root.classList.toggle('frozen', f.frozen > 0);
+  const chips = [];
+  for (const k of ['burn', 'poison', 'slow', 'sand', 'heat', 'thorns', 'regen']) {
+    if (f.st[k] > 0) chips.push(`<span class="chip" style="--c:var(${STAT_COLOR[k]})" title="${esc(STATUS_TEXT[k])}">${STAT_NAME[k]} ${f.st[k]}</span>`);
+  }
+  if (f.idle) chips.push(`<span class="chip" title="Nothing was cast in a full pass of the scroll">idle</span>`);
+  q('[data-chips]').innerHTML = chips.join('');
+  q('[data-spd]').textContent = Math.abs(f.speed - 1) > 0.005 ? `speed ${Math.round(f.speed * 100)}%` : '';
+}
+function floatNum(id, text, color) {
+  const box = $(id).querySelector('[data-floats]');
+  const s = el('span', 'float', esc(text)); s.style.color = color;
+  s.style.right = (14 + Math.random() * 60) + 'px';
+  box.appendChild(s); setTimeout(() => s.remove(), 1200);
+}
+function resetArena() {
+  const L = lv(), en = L.enemies[PB ? PB.idx : 0];
+  fighterShell('fA', 'You', PLAYER.weapon);
+  fighterShell('fB', en.name, en.weapon);
+  const r = simulate({ ...PLAYER, scroll: [] }, en, 1);
+  drawFighter('fA', r.frames[0].A); drawFighter('fB', r.frames[0].B);
+  $('clock').textContent = '0.0s'; $('tfill').style.width = '0'; $('phase').textContent = '90s limit';
+  $('result').hidden = true;
+  $('fight').disabled = false; $('pause').disabled = true; $('skip').disabled = true;
+  $('pause').textContent = 'Pause';
+  renderTheirs(PB ? PB.idx : 0);
+  renderMine();
+  renderLadder();
+}
+
+/* ---------------- fight ---------------- */
+function startFight() {
+  closePicker();
+  const sc = myScroll().map(l => (lineIssue(l) ? null : l));
+  if (!sc.some(Boolean)) { $('info').innerHTML = '<b>Your scroll is empty.</b> Inscribe at least one line with a verb and a target.'; return; }
+  const L = lv();
+  const fights = L.enemies.map(en => ({ en, res: simulate({ ...PLAYER, scroll: myScroll() }, en, L.seed) }));
+  PB = { fights, idx: 0, simT: 0, evI: 0, playing: true, done: false, last: performance.now() };
+  $('log').innerHTML = '';
+  beginBout();
+  $('fight').disabled = true; $('pause').disabled = false; $('skip').disabled = false;
+  renderMine(); renderLadder();
+  requestAnimationFrame(tick);
+}
+function beginBout() {
+  const f = PB.fights[PB.idx];
+  fighterShell('fA', 'You', PLAYER.weapon);
+  fighterShell('fB', f.en.name, f.en.weapon);
+  renderTheirs(PB.idx);
+  PB.simT = 0; PB.evI = 0;
+  logLine(null, 0, PB.fights.length > 1 ? `Bout ${PB.idx + 1}: ${f.en.name}` : `Duel with ${f.en.name} begins.`);
+  $('result').hidden = true;
+}
+function tick(now) {
+  if (!PB || PB.done) return;
+  const dt = Math.min(0.1, (now - PB.last) / 1000); PB.last = now;
+  if (PB.playing) {
+    PB.simT += dt * S.speed;
+    const f = PB.fights[PB.idx];
+    if (PB.simT >= f.res.time) { PB.simT = f.res.time; drawAt(PB.simT); boutOver(); return; }
+    drawAt(PB.simT);
+  }
+  requestAnimationFrame(tick);
+}
+function drawAt(t, quiet = false) {
+  const f = PB.fights[PB.idx], R = f.res;
+  const i = Math.min(R.frames.length - 1, Math.floor(t / 0.1 + 1e-6));
+  const fr = R.frames[i];
+  drawFighter('fA', fr.A); drawFighter('fB', fr.B);
+  $('clock').textContent = fr.t.toFixed(1) + 's';
+  $('tfill').style.width = (fr.t / RULES.MAX_TIME * 100) + '%';
+  $('phase').innerHTML = fr.t >= RULES.FATIGUE_AT ? '<span class="fatigue">Fatigue</span>' : 'Fatigue at 30s';
+  cursor('mine', fr.A); cursor('theirs', fr.B);
+  while (PB.evI < R.events.length && R.events[PB.evI].t <= fr.t + 1e-6) handleEvent(R.events[PB.evI++], quiet);
+}
+function cursor(boxId, f) {
+  const rows = $(boxId).querySelectorAll('.line');
+  rows.forEach((r, i) => {
+    const on = f.cast ? f.cast.line === i : (f.waiting === i || (!f.idle && f.cur === i));
+    r.classList.toggle('cur', on);
+    r.classList.toggle('wait', f.waiting === i);
+    r.querySelector('.bar').style.width = f.cast && f.cast.line === i ? (f.cast.p * 100) + '%' : '0';
+  });
+}
+function flash(boxId, i, cls) {
+  const r = $(boxId).querySelector(`.line[data-i="${i}"]`); if (!r) return;
+  r.classList.remove('flash-cast', 'flash-skip'); void r.offsetWidth; r.classList.add(cls);
+  clearTimeout(r._ft); r._ft = setTimeout(() => r.classList.remove(cls), Math.max(120, 380 / S.speed));
+}
+function handleEvent(e, quiet) {
+  const f = PB.fights[PB.idx];
+  const nm = s => (s === 'A' ? 'You' : f.en.name);
+  const box = s => (s === 'A' ? 'mine' : 'theirs');
+  const card = s => (s === 'A' ? 'fA' : 'fB');
+  const opp = s => (s === 'A' ? 'B' : 'A');
+  const tgtSide = e.target === 'self' ? e.side : opp(e.side);
+  const vb = (s, base, es) => (s === 'A' ? base : base + (es ? 'es' : 's'));
+  switch (e.kind) {
+    case 'cast': flash(box(e.side), e.line, 'flash-cast'); break;
+    case 'skip': flash(box(e.side), e.line, 'flash-skip');
+      logLine(e.side, e.t, `${nm(e.side)} ${vb(e.side, 'skip')} line ${e.line + 1} (${e.reason === 'cond' ? 'condition false' : 'not enough mana'})`, true); break;
+    case 'wait': logLine(e.side, e.t, `${nm(e.side)} ${vb(e.side, 'wait')} for mana on line ${e.line + 1}`, true); break;
+    case 'stall': logLine(e.side, e.t, `${nm(e.side)} cast nothing this pass and ${vb(e.side, 'idle')} ${RULES.STALL}s`); break;
+    case 'hit': case 'crit':
+      if (!quiet) floatNum(card(tgtSide), '-' + e.amount + (e.kind === 'crit' ? '!' : ''), 'var(--bad)');
+      logLine(e.side, e.t, `${nm(e.side)} ${vb(e.side, e.kind === 'crit' ? 'crit' : 'hit')}${e.target === 'self' ? (e.side === 'A' ? ' yourself' : ' itself') : ''} for ${e.amount}`); break;
+    case 'miss': if (!quiet) floatNum(card(tgtSide), 'miss', 'var(--s-desert)'); logLine(e.side, e.t, `${nm(e.side)} ${vb(e.side, 'miss', true)} (Sand)`); break;
+    case 'thorns': if (!quiet) floatNum(card(opp(e.side)), '-' + e.amount, 'var(--s-thorn)'); logLine(e.side, e.t, `${nm(e.side)}'s Thorns deal ${e.amount}`); break;
+    case 'effect': {
+      const V = VERBS[e.verb];
+      let what;
+      if (V.fx[0] === 'heal') { what = `heal ${e.amount}`; if (!quiet) floatNum(card(tgtSide), '+' + Math.round(e.amount), 'var(--good)'); }
+      else if (V.fx[0] === 'shield') { what = `+${e.amount} Shield`; if (!quiet) floatNum(card(tgtSide), '+' + e.amount, 'var(--s-shield)'); }
+      else if (V.fx[0] === 'mana') what = `+${e.amount} mana`;
+      else if (V.fx[0] === 'cleanse') what = e.amount ? `remove ${e.amount} ${STAT_NAME[e.status]}` : 'nothing to cleanse';
+      else what = e.amount ? `+${e.amount} ${STAT_NAME[e.status]}` : `${STAT_NAME[e.status]} blocked (thawing)`;
+      logLine(e.side, e.t, `${nm(e.side)}: ${V.name} → ${e.target === 'self' ? 'self' : nm(opp(e.side))}, ${what}`); break;
+    }
+    case 'dot': if (!quiet) floatNum(card(e.side), (e.status === 'regen' ? '+' : '-') + e.amount, e.status === 'burn' ? '#ff9a4a' : e.status === 'poison' ? '#a8e05a' : 'var(--s-lunar)'); break;
+    case 'freeze': logLine(e.side, e.t, `${nm(e.side)} ${e.side === 'A' ? 'are' : 'is'} Frozen for ${RULES.FREEZE_TIME}s`); break;
+    case 'thaw': logLine(e.side, e.t, `${nm(e.side)} ${vb(e.side, 'thaw')}`, true); break;
+    case 'fatigue': if (!quiet) floatNum(card(e.side), '-' + e.amount, '#f0c878'); if (e.side === 'A' && Math.abs(e.t - RULES.FATIGUE_AT) < 0.15) logLine(null, e.t, 'Fatigue begins. It grows every second and ignores Shield.'); break;
+  }
+}
+function logLine(side, t, text, minor) {
+  const d = el('div', side ? side : 'sys');
+  if (minor) d.style.opacity = '.6';
+  d.innerHTML = `<span class="t">${t.toFixed(1)}</span>${esc(text)}`;
+  const log = $('log');
+  log.prepend(d);
+  while (log.children.length > 120) log.lastChild.remove();
+}
+
+function boutOver() {
+  const f = PB.fights[PB.idx];
+  if (f.res.winner === 'A' && PB.idx < PB.fights.length - 1) {
+    logLine(null, f.res.time, `You beat ${f.en.name}.`);
+    PB.idx++;
+    setTimeout(() => { if (!PB || PB.done) return; beginBout(); PB.last = performance.now(); requestAnimationFrame(tick); }, 900 / Math.max(1, S.speed));
+    return;
+  }
+  finish();
+}
+function skipToEnd() {
+  if (!PB || PB.done) return;
+  while (true) {
+    const f = PB.fights[PB.idx];
+    drawAt(f.res.time, true);
+    if (f.res.winner === 'A' && PB.idx < PB.fights.length - 1) { logLine(null, f.res.time, `You beat ${f.en.name}.`); PB.idx++; beginBout(); continue; }
+    break;
+  }
+  finish();
+}
+function finish() {
+  PB.done = true; PB.playing = false;
+  const f = PB.fights[PB.idx], L = lv(), R = f.res;
+  const won = PB.fights.every(x => x.res.winner === 'A');
+  if (won && !S.solved.includes(L.id)) S.solved.push(L.id);
+  save();
+  $('fight').disabled = false; $('fight').textContent = 'Fight again'; $('pause').disabled = true; $('skip').disabled = true;
+  logLine(null, R.time, R.winner === 'A' ? 'You win.' : R.winner === 'B' ? `${f.en.name} wins.` : 'Draw.');
+  renderMine(); renderTheirs(PB.idx); renderLadder(); renderBrief();
+  cursor('mine', R.frames.at(-1).A); cursor('theirs', R.frames.at(-1).B);
+  lineStats('mine', R.report.A); lineStats('theirs', R.report.B);
+  showResult(f, won);
+}
+function lineStats(boxId, rep) {
+  $(boxId).querySelectorAll('.line').forEach((r, i) => {
+    const s = r.querySelector('[data-stats]'); if (!s) return;
+    const c = rep.cast[i] || 0, k = rep.skip[i] || 0;
+    s.textContent = c || k ? `cast ${c} · skip ${k}` : '';
+  });
+}
+function showResult(f, won) {
+  const R = f.res, L = lv(), A = R.report.A, B = R.report.B;
+  const verdict = won ? 'Victory' : R.winner === 'draw' ? 'Draw' : 'Defeat';
+  const cls = won ? 'win' : R.winner === 'draw' ? 'draw' : 'loss';
+  const srcName = k => (VERBS[k] ? VERBS[k].name : k[0].toUpperCase() + k.slice(1));
+  const dealt = rep => {
+    const rows = Object.entries(rep.dealt).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${srcName(k)}</td><td>${Math.round(v)}</td></tr>`).join('');
+    return rows || '<tr><td>Nothing</td><td>0</td></tr>';
+  };
+  const box = $('result');
+  const sub = won ? (PB.fights.length > 1 ? 'All three Examiners fall.' : `Solved in ${R.time.toFixed(1)}s with ${Math.ceil(R.frames.at(-1).A.hp)} HP left.`)
+    : R.winner === 'draw' ? (R.time >= RULES.MAX_TIME - 0.05 ? 'Time ran out at 90s.' : 'You fell together.')
+    : `${f.en.name} won at ${R.time.toFixed(1)}s.` + (PB.fights.length > 1 ? ` Bout ${PB.idx + 1} of ${PB.fights.length}.` : '');
+  const next = won && S.level < LEVELS.length - 1;
+  box.innerHTML = `<div><div class="verdict ${cls}">${verdict}</div><div class="tag">${esc(sub)}</div></div>
+    <div class="rep">
+      <div><h4>Your damage</h4><table>${dealt(A)}</table></div>
+      <div><h4>Their damage</h4><table>${dealt(B)}</table></div>
+      <div><h4>Your mana</h4><table><tr><td>Spent</td><td>${Math.round(A.manaSpent)}</td></tr><tr><td>Wasted at max</td><td>${Math.round(A.manaWasted)}</td></tr><tr><td>Idle passes</td><td>${A.stalls}</td></tr></table></div>
+      <div><h4>Your defence</h4><table><tr><td>Shield absorbed</td><td>${Math.round(A.shieldAbsorbed)}</td></tr><tr><td>Healed</td><td>${Math.round(A.healed)}</td></tr><tr><td>Damage taken</td><td>${Math.round(A.taken)}</td></tr></table></div>
+    </div>
+    <div class="controls">${next ? '<button class="btn primary" id="next">Next level</button>' : ''}<button class="btn" id="edit">Edit scroll</button></div>`;
+  box.hidden = false;
+  if (next) $('next').onclick = () => goLevel(S.level + 1);
+  $('edit').onclick = () => { PB = null; resetArena(); $('mine').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+}
+
+function goLevel(i) {
+  if (!unlocked(i)) return;
+  closePicker();
+  PB = null; S.level = i; S.hintShown = false; save();
+  $('fight').textContent = 'Fight';
+  $('log').innerHTML = '<div class="sys">The log fills in as the duel plays.</div>';
+  $('info').innerHTML = 'Tap a dashed slot in your scroll to inscribe a glyph.';
+  renderBrief(); renderPouch(); resetArena();
+}
+
+/* ---------------- controls ---------------- */
+const SPEEDS = [0.5, 1, 2, 4];
+function renderSpeeds() {
+  const seg = $('speeds'); seg.innerHTML = '';
+  for (const s of SPEEDS) {
+    const b = el('button', s === S.speed ? 'on' : '', s + '×'); b.type = 'button';
+    b.setAttribute('aria-pressed', s === S.speed);
+    b.onclick = () => { S.speed = s; store.set('speed', s); renderSpeeds(); };
+    seg.appendChild(b);
+  }
+}
+$('fight').onclick = () => { if (PB && PB.done) PB = null; startFight(); };
+$('pause').onclick = () => {
+  if (!PB || PB.done) return;
+  PB.playing = !PB.playing; PB.last = performance.now();
+  $('pause').textContent = PB.playing ? 'Pause' : 'Resume';
+};
+$('skip').onclick = skipToEnd;
+
+if (S.level >= LEVELS.length || !unlocked(S.level)) S.level = 0;
+renderSpeeds();
+goLevel(S.level);
+})();
+</script>
+</body>
+</html>

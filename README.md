@@ -1,6 +1,8 @@
 # Ember & Hex
 
 A playable prototype of a portrait mobile **autobattler deckbuilder**, built with three.js.
+> **New:** [`glyphbound/`](glyphbound/) is a separate prototype: a scroll-writing autobattler puzzle ladder. See its README.
+
 Everything lives in one self-contained file: [`index.html`](index.html). Open it in a browser (three.js r160 loads from cdnjs). All textures, icons and sounds are generated at runtime.
 
 ## The loop
