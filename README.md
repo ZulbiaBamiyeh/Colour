@@ -1,29 +1,36 @@
 # Bonk Blob
 
-A cute home-run-contest roguelike built with three.js. Bat a squishy blob as far as you can, grow the field with cards, discover combos and buy upgrades so every run goes further.
+A cute roguelike about bonking a squishy blob as far as possible, built with three.js. Each run starts from zero. Build up a field and gear over ten rounds and try to bonk your blob all the way to the Moon.
 
-Everything lives in one self-contained file: [`index.html`](index.html). Open it in a browser (three.js r160 loads from cdnjs). All models, faces, card art, music and sound effects are generated at runtime. Progress saves to the browser's local storage.
+Everything lives in one self-contained file: [`index.html`](index.html). Open it in a browser (three.js r160 loads from cdnjs). All models, faces, icons, music and sound effects are generated at runtime. Unlocks save to the browser's local storage.
 
-## The loop
-- **Run:** 5 swings (more with *Extra Innings*). Before each swing you pick 1 of 3 **field cards**.
-- **Swing:** the blob hops in. Tap (or press Space) when the shrinking ring meets the target ring. Perfect timing gives a hit-stop, a slow-mo crack and the best launch angle. Early hits pop up and late hits go low. Three misses is a strike-out.
-- **Flight:** no steering. The field you built does the work: mushrooms, springs, frogs, ponds, rockets, balloons, birds, clouds, wind and coin arcs. Bushes and snails slow you down. Helpers in a row build a **chain** worth bonus coins.
-- **Combos:** own both cards of a pair in one run and they fuse into a new kind of terrain, such as Mushroom Patch + Rain = **Mega Mushrooms**. There are 8 to discover in the Combo Book.
-- **Meta progression:** coins from distance, pickups, chains and records buy permanent upgrades (Big Bat, Sweet Spot, Springy Socks, Slippy Skin, Piggy Bank, Green Thumb, Card Shark, Extra Innings, Seed Packet) and unlock new blobs (Plum, Puff, Boing, Lucky).
-- **Areas:** the world changes as you fly further: Meadow, Sunset Shore (600 m), Frosty Peaks (1.5 km), Candy Clouds (3 km) and the Moon (6 km, low gravity).
+## Bonking
+- The blob hops in and lobs itself down through the **strike bar**.
+- **Hold** (finger, mouse or Space) to wind up the squeaky mallet. A power meter swings up and down while you hold, and time slows a little.
+- **Let go** to swing. The blob's height when you let go sets the **launch angle**: high on the bar for a steep launch, low for a line drive. The meter sets the **launch speed**, and letting go at the top of the meter gives *MAX POWER*.
+- A live arrow on the blob shows the angle and power you would get right now. Three whiffs count as a missed round.
+
+## A run
+- **Ten rounds** with growing distance goals (35 m up to 3.2 km, which is the Moon). Missing a goal costs one of 3 hearts.
+- **Camp** between rounds:
+  - **Field card:** free, pick 1 of 3. Cards change what grows in the field, such as mushrooms, frogs, ponds, balloons, birds, clouds, rockets and wind. Own both cards of a pair and they fuse into a combo, e.g. Mushroom Patch + Rain = **Mega Mushrooms**.
+  - **Gear:** bought with this run's coins. Most gear trades something away, e.g. *Bigger Mallet* hits harder but speeds up the power meter, and *Lead Boots* hit hard but bounce poorly.
+- Reach the Moon to win, then keep going into bonus rounds if you like.
+
+## Between runs (sidegrades only)
+No permanent stat upgrades. Milestones unlock:
+- **Blobs**, each with a different feel: Plum (heavy), Puff (floaty), Boing (springy), Lucky (rich).
+- **Starting fields**, each with its own starting deck, rule twist and colours: Lily Lake, Windy Cliffs, Candy Cove and Moon Base.
+
+The Combo Book remembers every combo you have discovered.
 
 ## Code map (inside `index.html`)
 | Section | What it is |
 | --- | --- |
-| `DATA` | Characters, upgrades, field cards, combos and biomes. Add a card or combo by adding an entry. |
-| `SOUND` | Web Audio synth: music loop, bat crack, boings, coins, wind. |
-| `MODELS` | Toon-shaded models with ink outlines (blob with jelly wobble and canvas faces, batter, every field object). |
-| `SKY, GROUND` / `SCENERY` / `BIOME PALETTE` | Gradient sky, striped field shader, recycled parallax scenery, colours that blend by distance. |
-| `PARTICLES` / `TRAIL` | One shared point cloud (discs, stars, confetti, rain) and the flight ribbon. |
-| `PITCH` / `FLIGHT` | Timing windows and launch maths, then fixed-substep physics, spawning on the predicted landing spot, collisions and effects. |
-| `RESULTS` / `HUB` | Coin tally, run summary, upgrade shop, character select, Combo Book. |
-
-## Balance notes
-- Launch speed is `24 m/s × 1.11^BigBat × character × timing`.
-- Helpers get rarer as one flight uses more of them (`0.8^hits`), and speed boosts shrink at high speed, so every flight ends.
-- Flights longer than 12 s speed up gradually, and the 2× button doubles that.
+| `DATA` | Blobs, fields, gear, round goals, field cards, combos, biomes. Add content by adding an entry. |
+| `SOUND` | Web Audio synth: music loop, mallet squeak, wind-up, boings, coins, wind. |
+| `MODELS` | Toon-shaded models with ink outlines: jelly blob with canvas faces, batter with sprout and mallet, every field object. |
+| `PITCH` | Lob path, strike bar, hold-to-charge power meter, aim arrow, angle from contact height. |
+| `updateBatter` | Spring-driven wind-up, swing, impact squash, follow-through and lunge. |
+| `FLIGHT` | Fixed-substep physics, spawning on the predicted landing spot, collisions and helper effects. |
+| `RUN FLOW` / `RESULTS` / `HUB` | Camp (card + gear shop), round results and hearts, run summary, unlock checks, character and field select. |
