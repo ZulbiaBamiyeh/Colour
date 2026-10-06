@@ -567,7 +567,8 @@ function beginBout() {
 }
 function tick(now) {
   if (!PB || PB.done) return;
-  const dt = Math.min(0.1, (now - PB.last) / 1000); PB.last = now;
+  // rAF timestamps can predate the click that started the fight, so never step backwards.
+  const dt = Math.max(0, Math.min(0.1, (now - PB.last) / 1000)); PB.last = Math.max(PB.last, now);
   if (PB.playing) {
     PB.simT += dt * S.speed;
     const f = PB.fights[PB.idx];
@@ -578,7 +579,7 @@ function tick(now) {
 }
 function drawAt(t, quiet = false) {
   const f = PB.fights[PB.idx], R = f.res;
-  const i = Math.min(R.frames.length - 1, Math.floor(t / 0.1 + 1e-6));
+  const i = Math.max(0, Math.min(R.frames.length - 1, Math.floor(t / 0.1 + 1e-6)));
   const fr = R.frames[i];
   drawFighter('fA', fr.A); drawFighter('fB', fr.B);
   $('clock').textContent = fr.t.toFixed(1) + 's';
