@@ -1619,21 +1619,28 @@ const BAT_FOLLOW = 1.55;
 batter.pivot.rotation.z = BAT_REST;
 
 const BAT_WIND = -2.0;
-// strike bar: where the falling blob can be bonked; its height sets the launch angle
-const ZONE = { lo: 0.8, hi: 3.4, aLo: 14, aHi: 66 };
-const zoneTex = (() => {
-  const c = document.createElement('canvas'); c.width = 128; c.height = 512;
-  const g = c.getContext('2d');
-  const gr = g.createLinearGradient(0, 30, 0, 482);
-  gr.addColorStop(0, 'rgba(183,156,255,.85)'); gr.addColorStop(0.5, 'rgba(255,207,63,.85)'); gr.addColorStop(1, 'rgba(111,224,176,.85)');
-  g.fillStyle = gr; g.beginPath(); g.roundRect(34, 22, 60, 468, 30); g.fill();
-  g.lineWidth = 8; g.strokeStyle = '#3a2748'; g.stroke();
-  g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 6; g.lineCap = 'round';
-  for (const y of [140, 256, 372]) { g.beginPath(); g.moveTo(48, y); g.lineTo(80, y); g.stroke(); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-})();
-const zoneBar = new THREE.Mesh(new THREE.PlaneGeometry(0.55, (ZONE.hi - ZONE.lo) * 1.1), new THREE.MeshBasicMaterial({ map: zoneTex, transparent: true, depthWrite: false }));
-zoneBar.position.set(CONTACT.x + 0.95, (ZONE.lo + ZONE.hi) / 2, -0.2); zoneBar.visible = false; scene.add(zoneBar);
+// step 1: an angle fan with a sweeping needle; step 2: timing rings around the contact point
+const AIM = { lo: 12, hi: 68 };
+const fan = new THREE.Group();
+{
+  const lo = AIM.lo * Math.PI / 180, len = (AIM.hi - AIM.lo) * Math.PI / 180;
+  const body = new THREE.Mesh(new THREE.RingGeometry(0.75, 3.1, 40, 1, lo, len), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+  const bands = [['#6fe0b0', 0, 0.33], ['#ffcf3f', 0.33, 0.34], ['#b79cff', 0.67, 0.33]];
+  for (const [c, a, l] of bands) {
+    const m = new THREE.Mesh(new THREE.RingGeometry(2.75, 3.1, 24, 1, lo + len * a, len * l), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+    m.renderOrder = 10; fan.add(m);
+  }
+  body.renderOrder = 9; fan.add(body);
+  const edge = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([0, 1].flatMap(k => { const a = lo + len * k; return [new THREE.Vector3(Math.cos(a) * 0.75, Math.sin(a) * 0.75, 0), new THREE.Vector3(Math.cos(a) * 3.1, Math.sin(a) * 3.1, 0)]; })), new THREE.LineBasicMaterial({ color: INK, transparent: true, depthTest: false }));
+  edge.renderOrder = 10; fan.add(edge);
+}
+fan.position.set(CONTACT.x, CONTACT.y, 0.9); fan.visible = false; scene.add(fan);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false, depthWrite: false });
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 64), ringMat);
+const target = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.2, 64), new THREE.MeshBasicMaterial({ color: 0xffcf3f, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false }));
+const targetCore = new THREE.Mesh(new THREE.RingGeometry(0.97, 1.03, 64), new THREE.MeshBasicMaterial({ color: 0x3a2748, transparent: true, opacity: 0.7, depthTest: false, depthWrite: false }));
+ring.renderOrder = target.renderOrder = targetCore.renderOrder = 10;
+for (const m of [ring, target, targetCore]) { m.position.set(CONTACT.x, CONTACT.y, 0.6); m.visible = false; scene.add(m); }
 const arrowShape = new THREE.Shape([[0, -0.11], [1, -0.11], [1, -0.3], [1.42, 0], [1, 0.3], [1, 0.11], [0, 0.11]].map(([x, y]) => new THREE.Vector2(x, y)));
 const aim = new THREE.Group();
 const aimMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false, depthWrite: false });
@@ -1661,7 +1668,7 @@ const G = {
   objs: [], coins: [], zones: [], pend: null, forceNext: null,
   nextAir: 0, nextCoin: 0, scatterX: 0, biomeSeen: 0, landT: 0,
   cam: { x: 2, y: 2.5, z: 11, lx: 0.6, ly: 1.6, ox: 0, olx: 0 }, aspectK: 1,
-  thumbs: {}, coinStreak: 0, coinStreakT: 0, rainT: 0, charge: null, pitchScale: 1,
+  thumbs: {}, coinStreak: 0, coinStreakT: 0, rainT: 0,
 };
 const has = id => G.run && G.run.combos.includes(id);
 const gearN = id => (G.run && G.run.gear[id]) || 0;
@@ -2043,7 +2050,7 @@ function resetWorld() {
   G.biomeSeen = 0; G.landT = 0; G.fast = false;
   $('btnFast').hidden = true; $('btnFast').classList.remove('on');
   $('chain').hidden = true;
-  zoneBar.visible = aim.visible = false; G.charge = null; $('aimTag').hidden = true;
+  fan.visible = aim.visible = false; ring.visible = target.visible = targetCore.visible = false; $('aimTag').hidden = true;
   BA.mode = 'idle'; BA.reach = 1;
   batter.setFace('ready');
   placeGoalFlag(0);
@@ -2055,104 +2062,128 @@ function resetWorld() {
    PITCH — the blob hops in; tap when the rings meet
    ===================================================================== */
 const HOP = 0.42;
-const meterPeriod = () => 0.62 * (1 + G.F.sweet) * gearMul('sweet');
-function meter() { if (!G.charge) return 0; const ph = (G.charge.t / meterPeriod()) % 2; return ph < 1 ? ph : 2 - ph; }
-const angleAt = y => lerp(ZONE.aLo, ZONE.aHi, clamp((y - ZONE.lo) / (ZONE.hi - ZONE.lo), 0, 1));
-function startPitch() {
+const sweetMul = () => (1 + G.F.sweet) * gearMul('sweet');
+function windows() { const sw = sweetMul(); return { p: 0.035 * sw, gr: 0.08 * sw, go: 0.14 * sw }; }
+// a new pitch starts with aiming; after a whiff the angle stays locked and the blob just hops in again
+function startPitch(keepAngle) {
   G.mode = 'pitch';
   const P = G.P;
-  // the last hop is a high lob that drops through the strike bar
-  const H = 4.6 + rand(-0.25, 0.35), g = 12 - Math.min(2, G.run.round * 0.15) + rand(-0.5, 0.5), x0 = 5.6;
-  const vy0 = Math.sqrt(2 * g * (H - P.R)), ta = vy0 / g;
-  const tz = ta + Math.sqrt(2 * (H - (ZONE.lo + ZONE.hi) / 2) / g);
-  const p = G.pitch = { t: -0.35, H, g, vy0, x0, vx: (CONTACT.x - x0) / tz, swung: false, missT: -1, res: null,
-    tTop: ta + Math.sqrt(2 * (H - ZONE.hi) / g), tBot: ta + Math.sqrt(2 * (H - ZONE.lo) / g) };
+  const tC = clamp(0.9 - G.run.round * 0.012, 0.78, 0.9) + rand(-0.05, 0.05);
+  const x0 = 5.4;
+  const p = G.pitch = { phase: keepAngle != null ? 'hop' : 'aim', angle: keepAngle, aimT: rand(0, 1), t: -0.45, tC, x0, from: keepAngle != null ? 9.6 : 7.2,
+    vx: (CONTACT.x - x0) / tC, vy0: 0, swung: false, missT: -1, res: null };
+  p.vy0 = (CONTACT.y - P.R + 0.5 * 16 * tC * tC) / tC;
   G.b = newBlobState(); G.b.x = 9.6; G.b.y = P.R;
   blob.setFace('idle');
-  G.charge = null; aim.visible = false; $('aimTag').hidden = true;
-  $('tapHint').hidden = save.tut;
+  const tw = windows().gr * 2.4 / tC;
+  target.geometry.dispose(); target.geometry = new THREE.RingGeometry(1 - tw, 1 + tw, 64);
+  setHint(p.phase);
   renderStrikes();
+}
+function setHint(phase) {
+  const h = $('tapHint');
+  h.hidden = save.tut && phase === 'hop';
+  h.innerHTML = phase === 'aim' ? 'Tap to set your angle<small>Up the fan = higher launch</small>' : 'Tap when the rings meet!<small>Better timing = more power</small>';
+}
+function aimAngle(p) { const ph = (p.aimT / (1.25 * sweetMul())) % 2; const u = ph < 1 ? ph : 2 - ph; return lerp(AIM.lo, AIM.hi, u * u * (3 - 2 * u)); }
+function pointAim(angDeg, len, color) {
+  const a = angDeg * Math.PI / 180;
+  aim.visible = true; aim.rotation.z = a;
+  aim.position.set(CONTACT.x + Math.cos(a) * 0.75, CONTACT.y + Math.sin(a) * 0.75, 1);
+  aimFill.scale.set(len, 1, 1); aimInk.scale.set(len * 1.04 + 0.08, 1.45, 1);
+  aimMat.color.set(color);
 }
 function updatePitch(dt) {
   const p = G.pitch, b = G.b, P = G.P;
+  if (p.phase === 'aim') {
+    p.aimT += dt;
+    // the blob waits off to the side, bouncing on the spot
+    const u = (G.time * 1.8) % 1;
+    b.x = 7.2; b.y = P.R + Math.sin(u * Math.PI) * 0.5; b.vx = 0;
+    if (u < 0.05 && !p.bounced) { p.bounced = true; b.sqv -= 4; } else if (u > 0.5) p.bounced = false;
+    const ang = aimAngle(p);
+    fan.visible = true; fan.lookAt(fan.position.x, fan.position.y, fan.position.z + 1);
+    pointAim(ang, 1.65, '#ffffff'); aimMat.opacity = 1;
+    showAimTag(`${Math.round(ang)}°`, CONTACT.x + Math.cos(ang * Math.PI / 180) * 3.6, CONTACT.y + Math.sin(ang * Math.PI / 180) * 3.6);
+    return;
+  }
   p.t += dt;
   const t = p.t;
-  if (t < 0) { b.x = 9.6; b.y = P.R; }
+  fan.visible = false;
+  if (!p.swung) { pointAim(p.angle, 1.15, '#ffcf3f'); aimMat.opacity = 0.7; } else aim.visible = false;
+  $('aimTag').hidden = true;
+  if (t < 0) { b.x = p.from; b.y = P.R; }
   else if (t < HOP * 2) {
     const k = t < HOP ? 0 : 1, u = (t - k * HOP) / HOP;
-    const xs = [9.6, 7.6, 5.6];
+    const xs = [p.from, lerp(p.from, 5.4, 0.5), 5.4];
     b.x = lerp(xs[k], xs[k + 1], u); b.y = P.R + Math.sin(Math.PI * u) * 1.1;
     if (u < 0.08 && !p['h' + k]) { p['h' + k] = true; b.sqv -= 5; Sound.squish(); }
     b.vx = -5;
   } else if (!p.res || p.res === 'miss') {
     const tt = t - HOP * 2;
-    if (!p.h2) { p.h2 = true; b.sqv -= 7; Sound.squish(); }
+    if (!p.wound && !p.swung) { p.wound = true; BA.mode = 'charge'; BA.t = 0; Sound.windup(0.5); }
     b.x = p.x0 + p.vx * tt;
-    b.y = P.R + p.vy0 * tt - 0.5 * p.g * tt * tt;
-    b.vx = p.vx; b.vy = p.vy0 - p.g * tt;
+    b.y = P.R + p.vy0 * tt - 0.5 * 16 * tt * tt;
+    b.vx = p.vx; b.vy = p.vy0 - 16 * tt;
     if (b.y < P.R) b.y = P.R;
-    if (!p.landedPast && b.y <= P.R && tt > p.tBot) { p.landedPast = true; b.sqv -= 6; Sound.squish(); }
-    const inZone = tt >= p.tTop - 0.03 && tt <= p.tBot + 0.03;
-    zoneBar.visible = !p.swung;
-    zoneBar.material.opacity = inZone ? 1 : 0.55;
-    if (!p.swung && tt > p.tBot + 0.08) {
-      p.swung = true; p.res = 'miss'; p.missT = 0.5; blob.setFace('look');
-      if (G.charge) { G.charge = null; swingMallet(BAT_HIT); Sound.whiff(); }
-      judge('Too late!', 'var(--paper)', 'clamp(34px,9vw,56px)');
+    if (!p.landedPast && b.y <= P.R && tt > p.tC) { p.landedPast = true; b.sqv -= 6; Sound.squish(); }
+    const W = windows(), K = 2.4 / p.tC;
+    const show = !p.swung;
+    ring.visible = target.visible = targetCore.visible = show;
+    if (show) {
+      const R0 = P.R * 1.15;
+      target.scale.setScalar(R0); targetCore.scale.setScalar(R0);
+      ring.scale.setScalar(Math.max(0.05, R0 * (1 + K * (p.tC - tt))));
+      const d = Math.abs(tt - p.tC);
+      ringMat.color.set(d <= W.p ? '#ffcf3f' : d <= W.gr ? '#fff1a8' : '#ffffff');
+      ringMat.opacity = clamp(1 - (tt - p.tC - W.go) * 8, 0, 1);
+      for (const m of [ring, target, targetCore]) m.lookAt(camera.position);
+    }
+    if (!p.swung && tt > p.tC + W.go + 0.04) {
+      p.swung = true; p.res = 'miss'; p.missT = 0.55; blob.setFace('look');
+      swingMallet(BAT_HIT); Sound.whiff(); judge('Too late!', 'var(--paper)', 'clamp(34px,9vw,56px)');
     }
     if (p.missT > 0) { p.missT -= dt; if (p.missT <= 0) strike(); }
   }
-  // aim arrow follows the blob: direction from its height, length from the power meter
-  if (G.charge && !p.swung) {
-    const m = meter(), tt = t - HOP * 2;
-    const live = tt >= p.tTop - 0.03 && tt <= p.tBot + 0.03;
-    const a = angleAt(b.y) * Math.PI / 180;
-    aim.visible = true;
-    aim.position.set(b.x + Math.cos(a) * P.R * 1.2, b.y + Math.sin(a) * P.R * 1.2, 0.9);
-    aim.rotation.z = a;
-    const len = 0.9 + 2.4 * m;
-    aimFill.scale.set(len, 1, 1); aimInk.scale.set(len * 1.04 + 0.08, 1.45, 1);
-    aimMat.color.set(!live ? '#d9cfe2' : m >= 0.9 ? '#ffcf3f' : m >= 0.65 ? '#ff8f6b' : '#ffffff');
-    aimMat.opacity = live ? 1 : 0.6;
-    const tag = $('aimTag');
-    tag.hidden = false;
-    tag.textContent = `${Math.round(angleAt(b.y))}° · ${Math.round(m * 100)}%`;
-    _pv.set(b.x, b.y - 1.1, 0.5).project(camera);
-    tag.style.transform = `translate(${(_pv.x * 0.5 + 0.5) * glCanvas.clientWidth}px,${(-_pv.y * 0.5 + 0.5) * glCanvas.clientHeight}px) translate(-50%,0)`;
-    tag.classList.toggle('max', live && m >= 0.9);
-  } else { aim.visible = false; $('aimTag').hidden = true; }
 }
-function startCharge() {
-  const p = G.pitch;
-  if (G.mode !== 'pitch' || !p || p.swung || G.charge) return;
-  G.charge = { t: 0, cyc: -1 };
-  BA.mode = 'charge'; BA.t = 0;
-  batter.setFace('ready');
+function showAimTag(text, x, y) {
+  const tag = $('aimTag'); tag.hidden = false; tag.textContent = text;
+  _pv.set(x, y, 1).project(camera);
+  tag.style.transform = `translate(${(_pv.x * 0.5 + 0.5) * glCanvas.clientWidth}px,${(-_pv.y * 0.5 + 0.5) * glCanvas.clientHeight}px) translate(-50%,-50%)`;
 }
-function releaseCharge() {
+function tapPitch() {
   const p = G.pitch;
-  if (!G.charge || !p || p.swung) { G.charge = null; return; }
-  const m = meter();
-  G.charge = null; aim.visible = false; $('aimTag').hidden = true;
-  const b = G.b, tt = p.t - HOP * 2;
+  if (G.mode !== 'pitch' || !p) return;
+  if (p.phase === 'aim') {
+    p.angle = Math.round(aimAngle(p)); p.phase = 'hop'; p.t = -0.2;
+    Sound.ui(); Sound.card();
+    fan.visible = false; $('aimTag').hidden = true;
+    floatText(`${p.angle}°`, CONTACT.x + 1.5, CONTACT.y + 1.6, 'coin');
+    setHint('hop');
+    return;
+  }
+  if (p.swung) return;
+  const tt = p.t - HOP * 2;
+  if (tt < -0.15) return; // still hopping in
+  const W = windows();
+  const dt = tt - p.tC, a = Math.abs(dt);
   p.swung = true;
-  const live = tt >= p.tTop - 0.03 && tt <= p.tBot + 0.03;
-  if (!live) {
+  const b = G.b;
+  if (a > W.go) {
     p.res = 'miss'; p.missT = 0.6;
     swingMallet(BAT_HIT);
-    Sound.whiff(); judge(tt < p.tTop ? 'Too early!' : 'Too late!', 'var(--paper)', 'clamp(34px,9vw,56px)');
+    Sound.whiff(); judge(dt < 0 ? 'Too early!' : 'Too late!', 'var(--paper)', 'clamp(34px,9vw,56px)');
     blob.setFace('shock'); batter.setFace('shock'); batter.faceT = 0.8;
     return;
   }
   save.tut = true; $('tapHint').hidden = true;
-  const qual = m >= 0.9 ? 'perfect' : m >= 0.65 ? 'great' : 'good';
-  const pf = qual === 'perfect' ? 1.2 : 0.5 + 0.62 * m;
-  const ang = angleAt(b.y);
-  const toBlob = Math.atan2(b.y - PIVOT.y, b.x - PIVOT.x);
-  swingMallet(toBlob, Math.hypot(b.x - PIVOT.x, b.y - PIVOT.y) / MALLET_REACH);
+  const qual = a <= W.p ? 'perfect' : a <= W.gr ? 'great' : 'good';
+  const q = 1 - a / W.go;
+  const pf = qual === 'perfect' ? 1.18 : qual === 'great' ? 0.94 + 0.06 * q : 0.62 + 0.3 * q;
+  swingMallet(Math.atan2(b.y - PIVOT.y, b.x - PIVOT.x), Math.hypot(b.x - PIVOT.x, b.y - PIVOT.y) / MALLET_REACH);
   const v = 24 * gearMul('pow') * G.P.ch.power * pf;
-  launch(qual, v, ang * Math.PI / 180);
-  floatText(`${Math.round(ang)}°`, b.x + 1.2, b.y + 0.4, 'coin');
+  aim.visible = false;
+  launch(qual, v, p.angle * Math.PI / 180);
 }
 function swingMallet(to, reach = 1) {
   BA.mode = 'swing'; BA.t = 0; BA.from = BA.ang; BA.to = to; BA.reach = clamp(reach, 0.8, 1.35);
@@ -2174,12 +2205,12 @@ function strike() {
   setTimeout(() => {
     if (G.mode !== 'pitch') return;
     if (out) { G.mode = 'result'; endSwing(0, true); }
-    else { BA.mode = 'idle'; startPitch(); }
+    else { BA.mode = 'idle'; startPitch(G.pitch.angle); }
   }, 1000);
 }
 function launch(qual, v, ang) {
   const b = G.b, P = G.P;
-  zoneBar.visible = false;
+  ring.visible = target.visible = targetCore.visible = fan.visible = aim.visible = false;
   G.mode = 'flight';
   Sound.squeak(); BA.headV -= 30; BA.hopV += 4;
   BA.shockT = 0; shock.position.set(b.x, b.y, 0.8);
@@ -2192,7 +2223,7 @@ function launch(qual, v, ang) {
   Sound.crack(qual);
   shakeCam(qual === 'perfect' ? 1.1 : qual === 'great' ? 0.7 : 0.4);
   flash(qual === 'perfect' ? 0.6 : qual === 'great' ? 0.4 : 0.2, qual === 'perfect' ? 300 : 200);
-  judge(qual === 'perfect' ? 'MAX POWER!' : qual === 'great' ? 'STRONG!' : 'Soft…', qual === 'perfect' ? 'var(--sun)' : qual === 'great' ? 'var(--mint)' : 'var(--paper)', qual === 'perfect' ? 'clamp(44px,12vw,84px)' : '');
+  judge(qual === 'perfect' ? 'PERFECT!' : qual === 'great' ? 'GREAT!' : 'Good', qual === 'perfect' ? 'var(--sun)' : qual === 'great' ? 'var(--mint)' : 'var(--paper)');
   const n = qual === 'perfect' ? 60 : qual === 'great' ? 34 : 16;
   burst(b.x, b.y, { n, colors: [COLS.gold, COLS.white, COLS.coral], shape: 1, speed: qual === 'perfect' ? 22 : 14, drag: 3, life: 0.8, size: 0.9 });
   burst(b.x, b.y, { n: 14, color: COLS.white, speed: 10, drag: 4, life: 0.4, size: 1.6, grow: 1 });
@@ -2841,15 +2872,9 @@ function updateBatter(sdt, dt) {
     spring(BA, 'ang', 'angV', BAT_REST + Math.sin(G.time * 2.4) * 0.05, 45, 10, sdt || dt * 0.2);
     BA.reach = damp(BA.reach, 1, 6, dt);
   } else if (BA.mode === 'charge') {
-    const m = meter();
-    spring(BA, 'ang', 'angV', BAT_WIND + Math.sin(G.time * 47) * 0.035 * m * m, 160, 16, dt);
-    leanT = 0.17 + 0.05 * m; sqT = 0.1 + 0.06 * m;
-    if (G.charge) {
-      const cyc = Math.floor(G.charge.t / meterPeriod());
-      if (cyc !== G.charge.cyc) { G.charge.cyc = cyc; if (cyc % 2 === 0) Sound.windup(meterPeriod()); }
-      G.charge.t += dt;
-      if (m > 0.9 && chance(dt * 30)) parts.spawn(batter.pivot.position.x + Math.cos(BA.ang) * 1.8, batter.pivot.position.y + Math.sin(BA.ang) * 1.8, 0.5, rand(-2, 2), rand(1, 3), 0, { color: COLS.gold, size: 0.45, life: 0.4, shape: 1 });
-    }
+    const p = G.pitch, m = p ? clamp((p.t - HOP * 2) / p.tC, 0, 1) : 0;
+    spring(BA, 'ang', 'angV', lerp(BAT_REST, BAT_WIND, Math.min(1, m * 2)) + Math.sin(G.time * 47) * 0.035 * m * m, 160, 16, dt);
+    leanT = 0.17 * Math.min(1, m * 2) + 0.05 * m; sqT = 0.1 * Math.min(1, m * 2) + 0.06 * m;
   } else if (BA.mode === 'swing') {
     const t = BA.t, T1 = 0.06, T2 = 0.2;
     const over = BAT_FOLLOW + 0.35;
@@ -2906,11 +2931,8 @@ function drawSpeedLines(dt) {
 function onTap() {
   Sound.init();
   if (G.mode === 'title') { Sound.ui(); goHub(); }
-  else if (G.mode === 'pitch') startCharge();
+  else if (G.mode === 'pitch') tapPitch();
 }
-window.addEventListener('pointerup', () => { if (G.charge) releaseCharge(); });
-window.addEventListener('pointercancel', () => { if (G.charge) releaseCharge(); });
-window.addEventListener('keyup', e => { if ((e.code === 'Space' || e.code === 'Enter') && G.charge) releaseCharge(); });
 $('game').addEventListener('pointerdown', e => {
   if (e.target.closest('button, .sheet, #comboReveal, .panel')) return;
   if (G.mode === 'draft' || G.mode === 'hub') return;
@@ -2956,8 +2978,7 @@ function frame(now) {
   if (G.hitstop > 0) { G.hitstop -= dt; sdt = 0; }
   else if (G.slowmo > 0) { G.slowmo -= dt; sdt = dt * lerp(1, 0.22, clamp(G.slowmo / 0.75, 0, 1)); }
   if (G.mode === 'flight') sdt *= clamp(1 + ((G.b.ft || 0) - 12) * 0.05, 1, 2) * (G.fast ? 2.5 : 1);
-  G.pitchScale = damp(G.pitchScale, G.charge && G.pitch && G.pitch.t > HOP * 2 - 0.2 ? 0.45 : 1, 10, dt);
-  if (G.mode === 'pitch') updatePitch(sdt * G.pitchScale);
+  if (G.mode === 'pitch') updatePitch(sdt);
   else if (G.mode === 'flight') updateFlight(sdt);
   else if (G.mode === 'landed') { G.landT += dt; if (G.landT > 1.1 && G.run) { G.mode = 'result'; endSwing(Math.max(0, G.b.x)); } }
   updateObjects(sdt, G.cam.x);
@@ -2994,7 +3015,7 @@ applyBiome(0);
 renderMute();
 G.thumbs = makeThumbs();
 G.mode = 'title';
-window.__bonk = { G, swingMallet, startCharge, releaseCharge, meter, BA, save, updateFlight, launch, computeField, physParams, resetWorld, spawnObj, rollCards, rollGear, gearCost, checkCombos, goalFor, GEAR, CARDS, COMBOS, FIELDS, gearMul };
+window.__bonk = { G, swingMallet, tapPitch, BA, save, updateFlight, launch, computeField, physParams, resetWorld, spawnObj, rollCards, rollGear, gearCost, checkCombos, goalFor, GEAR, CARDS, COMBOS, FIELDS, gearMul };
 G.F = computeField(); G.P = physParams();
 resetWorld();
 setScreen('title');
