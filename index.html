@@ -160,6 +160,14 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 .gear .btn{display:flex;align-items:center;gap:4px;font-size:14px;padding:6px 10px 7px}
 .gear.sold{opacity:.55}
 .mini.gear{background-color:var(--cream);border-style:dashed}
+.mini{position:relative}
+.mini .cnt{position:absolute;right:-6px;bottom:-6px;min-width:15px;height:15px;padding:0 3px;box-sizing:border-box;border-radius:999px;background:var(--ink);color:var(--paper);font:700 10px/15px var(--ui);text-align:center}
+.mini.dread{background-color:#0b0405;border-color:#5a0a10}
+.gear.dread{background:#0b0405;border-radius:14px;padding:6px 4px;color:#e9d6d0}
+.gear.dread .gi{border-color:#5a0a10;background-color:#0b0405}
+.gear.dread .gt{color:#ff9a9a;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:700}
+.gear.dread .gd{color:#c9aaa6;font-family:Georgia,'Times New Roman',serif;font-style:italic}
+.gear.dread .btn{background:#2a0a0e;color:#ffb3b3;border-color:#5a0a10;box-shadow:0 4px 0 #000}
 #btnBonk{width:100%;max-width:440px}
 .draft-title{font-family:var(--display);font-size:clamp(30px,8vw,44px);color:var(--paper);-webkit-text-stroke:7px var(--ink);paint-order:stroke fill;text-align:center;line-height:1}
 .draft-sub{font-weight:600;color:var(--paper);text-shadow:0 2px 0 var(--ink);text-align:center;font-size:15px;margin-top:-6px}
@@ -389,7 +397,7 @@ function weighted(obj) {
    ===================================================================== */
 const SAVE_KEY = 'bonkblob.save.v2';
 // Only unlocks and knowledge persist between runs. All power is earned inside a run.
-const freshSave = () => ({ bestDist: 0, bestRound: 0, wins: 0, runs: 0, chars: { pom: true }, fields: { meadow: true }, sel: 'pom', field: 'meadow', combos: {}, tut: false, muted: false });
+const freshSave = () => ({ seenMoon: false, bestDist: 0, bestRound: 0, wins: 0, runs: 0, chars: { pom: true }, fields: { meadow: true }, sel: 'pom', field: 'meadow', combos: {}, tut: false, muted: false });
 function loadSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -459,6 +467,13 @@ const GEAR = [
   { id: 'piggy',   name: 'Piggy Bank',      desc: '30% more coins.', base: 18, grow: 1.7, coin: 1.3 },
   { id: 'feather', name: 'Feather',         desc: '8% lower gravity. Bushes slow you more.', base: 28, grow: 1.6, grav: 0.92, bush: 1.2 },
   { id: 'heart',   name: 'Spare Heart',     desc: 'One more heart for this run.', base: 40, grow: 2, heart: 1, rare: true },
+  // only offered once you have seen the Moon properly; each is free or costs a heart, and each takes something
+  { id: 'shard',     dread: true, name: 'A Piece of the Moon', desc: 'It is cold, and it is not empty. Hit 40% harder. It will always know where you are.', pow: 1.4, nearer: 0.25 },
+  { id: 'offering',  dread: true, name: 'Offering', desc: 'Leave it one of your hearts. It gives something back.', heartCost: 1, pow: 1.15, coin: 1.6 },
+  { id: 'blindfold', dread: true, name: 'Blindfold', desc: "You won't need the rings any more. Listen. It will tell you when.", sweet: 2.0, blind: true },
+  { id: 'smile',     dread: true, name: "The Batter's Smile", desc: 'Let the batter swing for you. It never misses. It never stops smiling.', auto: true },
+  { id: 'ash',       dread: true, name: 'Ash', desc: 'Everything grows lighter. Nothing kind grows in the field any more.', grav: 0.75, helpMul: 0.35 },
+  { id: 'hollow',    dread: true, name: 'Hollow', desc: 'Your blob stops being afraid. Its bounces keep everything. Its face will not come back.', rest: 0.1, keep: 0.04 },
 ];
 // distance goal for each round; reaching round 10's goal means reaching the Moon
 const GOALS = [35, 55, 100, 190, 330, 540, 850, 1300, 2000, 3200];
@@ -644,6 +659,25 @@ const Sound = (() => {
     },
     chomp() { tone({ f: 90, f2: 30, dur: 0.4, vol: 0.9, bus: scare }); noise({ ft: 'lowpass', f: 900, f2: 200, dur: 0.35, vol: 0.6, bus: scare }); },
     breath() { noise({ ft: 'bandpass', f: 420, q: 1.5, dur: 1.5, a: 0.9, vol: 0.35, bus: scare }); },
+    // a deep stone groan for the lunge: sub tones, grinding grit with a slow tremble
+    groan() {
+      const t = ctx.currentTime, d = 1.6;
+      const shaper = ctx.createWaveShaper(); shaper.curve = distCurve;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t); lp.frequency.exponentialRampToValueAtTime(140, t + d);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + 0.03); g.gain.setValueAtTime(1, t + d * 0.55); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      shaper.connect(lp); lp.connect(g); g.connect(scare);
+      for (const f of [31, 32.6, 46.5, 62]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.75, t + d); o.connect(shaper); o.start(t); o.stop(t + d + 0.05); }
+      const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.playbackRate.value = 0.5;
+      const nf = ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 170; nf.Q.value = 0.9;
+      const trem = ctx.createGain(); trem.gain.value = 0.6;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 11; const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(trem.gain);
+      n.connect(nf); nf.connect(trem); trem.connect(shaper); n.start(t); n.stop(t + d + 0.05); lfo.start(t); lfo.stop(t + d + 0.05);
+      tone({ f: 26, f2: 18, dur: d * 1.3, vol: 1, bus: scare });
+    },
+    whisper() { noise({ ft: 'bandpass', f: 2400, q: 5, dur: 1.4, a: 0.5, vol: 0.09, bus: echo }); noise({ ft: 'bandpass', f: 1500, q: 6, dur: 1.1, a: 0.4, vol: 0.06, delay: 0.5, bus: echo }); },
+    buzz() { tone({ f: 60, type: 'square', dur: 0.18, vol: 0.05, lp: 500 }); tone({ f: 120, type: 'sawtooth', dur: 0.12, vol: 0.03, lp: 900, delay: 0.2 }); },
+    thump() { tone({ f: 58, f2: 36, dur: 0.22, vol: 0.9, bus: scare }); },
+    swallowed() { tone({ f: 48, f2: 26, dur: 1.4, vol: 0.6, bus: echo }); noise({ ft: 'lowpass', f: 300, f2: 80, dur: 1.2, vol: 0.4, bus: echo }); },
     roar() {
       const t = ctx.currentTime, d = 1.2;
       const shaper = ctx.createWaveShaper(); shaper.curve = distCurve;
@@ -840,6 +874,15 @@ function drawFace(expr) {
       g.fillStyle = '#7fd0ff';
       for (const [x, y] of [L, R]) { g.beginPath(); g.moveTo(x + 15, y + 22); g.quadraticCurveTo(x + 24, y + 40, x + 15, y + 44); g.quadraticCurveTo(x + 6, y + 40, x + 15, y + 22); g.fill(); }
       break;
+    case 'hollow': case 'grin': {
+      for (const [x, y] of [L, R]) {
+        const gr = g.createRadialGradient(x, y, 4, x, y, 26);
+        gr.addColorStop(0, '#000'); gr.addColorStop(0.7, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, 22, 26, 0, 0, Math.PI * 2); g.fill();
+      }
+      if (expr === 'grin') { g.lineWidth = 5; g.beginPath(); g.moveTo(70, 150); g.quadraticCurveTo(128, 196, 186, 150); g.stroke(); for (let i = 0; i < 9; i++) { const x = 80 + i * 12; g.beginPath(); g.moveTo(x, 152 + Math.sin(i / 8 * Math.PI) * 18); g.lineTo(x, 160 + Math.sin(i / 8 * Math.PI) * 18); g.stroke(); } }
+      break;
+    }
     case 'love':
       cheeks(0.7); g.fillStyle = '#ff5d7a';
       for (const [x, y] of [L, R]) { g.beginPath(); g.moveTo(x, y + 16); g.bezierCurveTo(x - 30, y - 4, x - 12, y - 24, x, y - 8); g.bezierCurveTo(x + 12, y - 24, x + 30, y - 4, x, y + 16); g.fill(); }
@@ -1253,13 +1296,13 @@ const startArea = new THREE.Group();
   startArea.userData.signC = signC; startArea.userData.signTex = signTex;
   drawSign(signC, signTex);
 }
-function drawSign(c, tex) {
+function drawSign(c, tex, text = 'BONK!') {
   const sg = c.getContext('2d');
   sg.clearRect(0, 0, c.width, c.height);
   sg.fillStyle = '#ff6b6b'; sg.beginPath(); sg.roundRect(8, 8, 496, 144, 36); sg.fill();
   sg.lineWidth = 12; sg.strokeStyle = '#3a2748'; sg.stroke();
   sg.font = '96px "Bagel Fat One", Fredoka, sans-serif'; sg.textAlign = 'center'; sg.textBaseline = 'middle';
-  sg.lineWidth = 14; sg.strokeText('BONK!', 256, 86); sg.fillStyle = '#fffaf0'; sg.fillText('BONK!', 256, 86);
+  sg.lineWidth = 14; sg.strokeText(text, 256, 86); sg.fillStyle = '#fffaf0'; sg.fillText(text, 256, 86);
   tex.needsUpdate = true;
 }
 scene.add(startArea);
@@ -1622,6 +1665,23 @@ function makeGearModel(id) {
   return g;
 }
 
+function dreadIcon(id) {
+  const c = document.createElement('canvas'); c.width = c.height = 160;
+  const g = c.getContext('2d');
+  g.fillStyle = '#0b0405'; g.fillRect(0, 0, 160, 160);
+  const hole = (x, y, rx, ry) => { const gr = g.createRadialGradient(x, y, 2, x, y, Math.max(rx, ry)); gr.addColorStop(0, '#000'); gr.addColorStop(0.75, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+  g.strokeStyle = '#8a1a20'; g.lineWidth = 4; g.lineCap = 'round';
+  switch (id) {
+    case 'shard': g.fillStyle = '#8f8a82'; g.beginPath(); g.moveTo(60, 30); g.lineTo(118, 58); g.lineTo(104, 128); g.lineTo(46, 118); g.closePath(); g.fill(); hole(78, 76, 12, 14); break;
+    case 'offering': g.fillStyle = '#7a1018'; g.beginPath(); g.moveTo(80, 128); g.bezierCurveTo(20, 90, 30, 40, 80, 62); g.bezierCurveTo(130, 40, 140, 90, 80, 128); g.fill(); g.strokeStyle = '#0b0405'; g.lineWidth = 5; g.beginPath(); g.moveTo(80, 64); g.lineTo(72, 86); g.lineTo(88, 98); g.lineTo(78, 124); g.stroke(); break;
+    case 'blindfold': g.fillStyle = '#d8d0c4'; g.beginPath(); g.arc(80, 84, 46, 0, Math.PI * 2); g.fill(); g.fillStyle = '#140608'; g.fillRect(24, 64, 112, 28); g.beginPath(); g.moveTo(130, 70); g.lineTo(150, 108); g.lineTo(138, 112); g.fill(); break;
+    case 'smile': g.fillStyle = '#5aa9ff'; g.beginPath(); g.arc(80, 86, 50, 0, Math.PI * 2); g.fill(); hole(62, 72, 11, 14); hole(98, 72, 11, 14); g.strokeStyle = '#0b0405'; g.lineWidth = 5; g.beginPath(); g.moveTo(46, 98); g.quadraticCurveTo(80, 132, 114, 98); g.stroke(); break;
+    case 'ash': g.fillStyle = '#8f8a82'; for (let i = 0; i < 60; i++) { g.globalAlpha = 0.3 + Math.random() * 0.6; g.beginPath(); g.arc(30 + Math.random() * 100, 20 + i * 2 + Math.random() * 10, 2 + Math.random() * 3, 0, Math.PI * 2); g.fill(); } g.globalAlpha = 1; break;
+    case 'hollow': g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(80, 84, 50, 0, Math.PI * 2); g.fill(); hole(62, 78, 13, 16); hole(98, 78, 13, 16); break;
+  }
+  return c.toDataURL();
+}
+
 /* =====================================================================
    CARD THUMBNAILS — rendered once from the same 3D models
    ===================================================================== */
@@ -1663,7 +1723,8 @@ function makeThumbs() {
     shoot('magnet', makeMagnet(), 0.05);
     shoot('rocket', makeRocket(false), 0.05);
     const gm = makeMallet(true); gm.rotation.z = 0.7; shoot('glove', gm, 0.05);
-    for (const g of GEAR) shoot('gear_' + g.id, makeGearModel(g.id), 0.12);
+    for (const g of GEAR) if (!g.dread) shoot('gear_' + g.id, makeGearModel(g.id), 0.12);
+    for (const g of GEAR) if (g.dread) out['gear_' + g.id] = dreadIcon(g.id);
     shoot('megashroom', group([makeMushroom(true), 0, 0], [makeMushroom(), 2.6, 0, 0.6]));
     const lily = makeFrog(true); lily.rotation.x = 0.25; shoot('lilyleap', lily, 0.35);
     shoot('kites', makeKite(), 0.05);
@@ -1688,35 +1749,47 @@ float vnoise(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * 
 float fbm(vec3 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p *= 2.03; a *= 0.5; } return s; }
 float seg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
 `;
-// the face lives on the +z side of a unit sphere: q = (x, y) of the surface point
+// the face lives on the +z side of a unit sphere: q = (x, y) of the surface point.
+// It has no eyes and no mouth: only two hollow sockets under a worn brow.
 const FACE_GLSL = `
-uniform float uJaw;
-const vec2 EYE_L = vec2(-0.32, 0.17);
-const vec2 EYE_R = vec2(0.32, 0.17);
-float socketD(vec2 q){ return min(length((q - EYE_L) * vec2(1.0, 1.25)), length((q - EYE_R) * vec2(1.0, 1.25))); }
-float mouthMask(vec2 q){
-  vec2 m = q - vec2(0.0, -0.41 - uJaw * 0.05);
-  float wave = 0.012 * cos(m.x * 22.0);
-  return smoothstep(0.43, 0.37, abs(m.x)) * smoothstep(0.075 + uJaw * 0.13, 0.045 + uJaw * 0.12, abs(m.y - wave));
+const vec2 EYE_L = vec2(-0.31, 0.12);
+const vec2 EYE_R = vec2(0.31, 0.12);
+float socketD(vec2 q){
+  vec2 a = q - EYE_L, b = q - EYE_R;
+  a = vec2(a.x * 0.98 - a.y * 0.2, a.x * 0.2 + a.y * 0.98);
+  b = vec2(b.x * 0.98 + b.y * 0.2, -b.x * 0.2 + b.y * 0.98);
+  float da = length(a * vec2(1.0, 1.12)) + 0.006 * sin(atan(a.y, a.x) * 3.0) + 0.004 * sin(atan(a.y, a.x) * 7.0 + 2.0);
+  float db = length(b * vec2(1.0, 1.12)) + 0.006 * sin(atan(b.y, b.x) * 4.0 + 1.3) + 0.004 * sin(atan(b.y, b.x) * 9.0);
+  return min(da, db);
+}
+float tearMask(vec2 q){
+  // grime that has run down from the sockets for a very long time
+  float m = 0.0;
+  for (int k = 0; k < 2; k++) {
+    vec2 e = k == 0 ? EYE_L : EYE_R;
+    float dx = q.x - e.x - 0.03 * sin(q.y * 9.0 + float(k) * 2.0);
+    m += exp(-abs(dx) * 13.0) * smoothstep(-0.75, e.y - 0.1, q.y) * smoothstep(e.y + 0.02, e.y - 0.12, q.y);
+    float dx2 = q.x - e.x * 0.8 - 0.05 * sin(q.y * 6.0 + 4.0 + float(k));
+    m += 0.7 * exp(-abs(dx2) * 20.0) * smoothstep(-0.55, e.y - 0.12, q.y) * smoothstep(e.y, e.y - 0.15, q.y);
+  }
+  return clamp(m, 0.0, 1.0);
 }
 float faceDisp(vec3 p){
-  vec2 q = p.xy; float d = 0.0;
-  d -= 0.085 * smoothstep(0.27, 0.06, socketD(q));
-  d += 0.07 * (smoothstep(0.09, 0.0, seg(q, vec2(-0.7, 0.48), vec2(-0.09, 0.31))) + smoothstep(0.09, 0.0, seg(q, vec2(0.7, 0.48), vec2(0.09, 0.31))));
-  d -= 0.04 * smoothstep(0.045, 0.0, abs(q.x)) * smoothstep(0.22, 0.36, q.y) * smoothstep(0.62, 0.4, q.y);
-  d += 0.095 * smoothstep(0.16, 0.0, length((q - vec2(0.0, -0.07)) * vec2(1.0, 0.62)));
-  d += 0.035 * (smoothstep(0.24, 0.0, length(q - vec2(-0.43, -0.13))) + smoothstep(0.24, 0.0, length(q - vec2(0.43, -0.13))));
-  d -= 0.032 * (smoothstep(0.03, 0.0, seg(q, vec2(-0.12, -0.13), vec2(-0.41, -0.45))) + smoothstep(0.03, 0.0, seg(q, vec2(0.12, -0.13), vec2(0.41, -0.45))));
-  d -= 0.08 * mouthMask(q);
-  d -= 0.007 * sin(q.y * 75.0 + sin(q.x * 7.0) * 1.6) * smoothstep(0.48, 0.56, q.y) * smoothstep(0.86, 0.72, q.y) * smoothstep(0.55, 0.15, abs(q.x));
+  vec2 q = p.xy;
+  float s = socketD(q);
+  float d = -0.11 * smoothstep(0.27, 0.12, s) - 0.03 * smoothstep(0.36, 0.22, s);
+  d += 0.03 * smoothstep(0.05, 0.0, abs(s - 0.26));
+  d += 0.04 * (smoothstep(0.1, 0.0, seg(q, vec2(-0.6, 0.36), vec2(-0.07, 0.28))) + smoothstep(0.1, 0.0, seg(q, vec2(0.6, 0.36), vec2(0.07, 0.28))));
   return d * smoothstep(0.05, 0.45, p.z);
 }
-float moonDisp(vec3 p){ return faceDisp(p) + 0.025 * (fbm(p * 4.0) - 0.5) - 0.02 * smoothstep(0.55, 0.75, fbm(p * 7.0 + 3.1)); }
+float moonDisp(vec3 p){
+  return faceDisp(p) + 0.03 * (fbm(p * 4.0) - 0.5) - 0.025 * smoothstep(0.56, 0.72, fbm(p * 7.0 + 3.1)) - 0.015 * smoothstep(0.6, 0.72, fbm(p * 13.0 + 11.0));
+}
 `;
-const moonU = { uJaw: { value: 0 }, uKeyV: { value: new THREE.Vector3(0, -0.6, 0.8) }, uGlow: { value: 0.12 }, uRed: { value: 0 }, uPupil: { value: 0.065 } };
+const moonU = { uKeyV: { value: new THREE.Vector3(0, -0.6, 0.8) }, uGlow: { value: 0.1 }, uRed: { value: 0 }, uFade: { value: 0 } };
 function makeMoon() {
   const group = new THREE.Group();
-  const skin = new THREE.Mesh(new THREE.SphereGeometry(1, 144, 108), new THREE.ShaderMaterial({
+  const skin = new THREE.Mesh(new THREE.SphereGeometry(1, 160, 120), new THREE.ShaderMaterial({
     uniforms: moonU, fog: false,
     vertexShader: GLSL_NOISE + FACE_GLSL + `
       varying vec3 vObj; varying vec3 vN; varying vec3 vView;
@@ -1725,7 +1798,7 @@ function makeMoon() {
         vec3 p = normalize(position);
         vec3 t1 = normalize(cross(p, abs(p.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
         vec3 t2 = cross(p, t1);
-        float e = 0.006;
+        float e = 0.005;
         vec3 P = surf(p);
         vec3 n = normalize(cross(surf(normalize(p + t1 * e)) - P, surf(normalize(p + t2 * e)) - P));
         if (dot(n, p) < 0.0) n = -n;
@@ -1734,89 +1807,42 @@ function makeMoon() {
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: GLSL_NOISE + FACE_GLSL + `
-      uniform vec3 uKeyV; uniform float uGlow; uniform float uRed;
+      uniform vec3 uKeyV; uniform float uGlow; uniform float uRed; uniform float uFade;
       varying vec3 vObj; varying vec3 vN; varying vec3 vView;
       void main(){
         vec3 p = vObj; vec2 q = p.xy; float front = smoothstep(0.05, 0.45, p.z);
-        vec3 base = mix(vec3(0.74, 0.7, 0.52), vec3(0.42, 0.38, 0.27), fbm(p * 5.0));
-        base *= 0.7 + 0.45 * smoothstep(0.35, 0.7, fbm(p * 12.0 + 7.0));
-        base *= 1.0 - 0.45 * smoothstep(0.58, 0.72, fbm(p * 7.0 + 3.1));
+        // ash and old bone
+        vec3 base = mix(vec3(0.6, 0.58, 0.53), vec3(0.33, 0.31, 0.29), fbm(p * 4.5));
+        base *= 0.75 + 0.4 * smoothstep(0.35, 0.7, fbm(p * 12.0 + 7.0));
+        base *= 1.0 - 0.5 * smoothstep(0.57, 0.7, fbm(p * 7.0 + 3.1));
+        // long fissures
+        vec3 w = p * 3.0 + vec3(fbm(p * 2.0), fbm(p * 2.0 + 5.0), 0.0) * 1.5;
+        float crack = pow(1.0 - abs(vnoise(w) * 2.0 - 1.0), 22.0) + 0.6 * pow(1.0 - abs(vnoise(w * 2.3 + 9.0) * 2.0 - 1.0), 30.0);
+        crack *= smoothstep(0.42, 0.6, fbm(p * 3.0 + 20.0));
+        base *= 1.0 - 0.8 * clamp(crack * 1.6, 0.0, 1.0);
+        // grime run down from the hollows
+        base = mix(base, vec3(0.09, 0.075, 0.07), front * tearMask(q) * 0.85);
         float s = socketD(q);
-        base = mix(base, vec3(0.14, 0.05, 0.05), front * smoothstep(0.26, 0.1, s) * 0.9);
-        float vn = pow(1.0 - abs(vnoise(p * 11.0) * 2.0 - 1.0), 30.0) + 0.7 * pow(1.0 - abs(vnoise(p * 26.0 + 5.0) * 2.0 - 1.0), 34.0);
-        float vm = front * smoothstep(0.5, 0.14, s) * 1.3 + front * smoothstep(0.45, 0.75, q.y) * 0.5 + 0.04;
-        base = mix(base, vec3(0.38, 0.02, 0.03), clamp(vn * vm, 0.0, 1.0));
-        float mm = front * mouthMask(q);
-        base = mix(base, vec3(0.012, 0.0, 0.004), mm);
-        float no = min(length(q - vec2(-0.055, -0.15)), length(q - vec2(0.055, -0.15)));
-        base = mix(base, vec3(0.08, 0.02, 0.02), front * smoothstep(0.035, 0.012, no));
+        float ao = front * smoothstep(0.34, 0.17, s);
+        float void_ = front * smoothstep(0.205, 0.17, s);
         vec3 n = normalize(vN);
         float diff = max(dot(n, normalize(uKeyV)), 0.0);
-        float rim = pow(1.0 - max(dot(n, normalize(-vView)), 0.0), 3.0);
         float facing = max(dot(n, normalize(-vView)), 0.0);
-        vec3 col = base * (0.035 + 1.3 * diff * diff + uGlow * 0.5) * mix(0.3, 1.0, pow(facing, 0.6)) + vec3(0.55, 0.04, 0.02) * rim * (0.3 + uRed) * (1.0 - mm);
-        col = mix(col, col * vec3(1.25, 0.5, 0.45), uRed * 0.6);
+        float rim = pow(1.0 - facing, 3.0);
+        vec3 col = base * (0.03 + 1.25 * diff * diff + uGlow) * mix(0.28, 1.0, pow(facing, 0.6));
+        col += vec3(0.42, 0.4, 0.46) * rim * 0.22;
+        col *= 1.0 - ao * 0.85;
+        col = mix(col, col * vec3(1.2, 0.55, 0.5), uRed * 0.6);
+        // the hollows are darker than the night
+        col *= 1.0 - void_;
+        // far away it is just a pale daytime moon
+        col = mix(col, vec3(0.86, 0.9, 0.96), uFade);
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
       }`,
   }));
   group.add(skin);
-  const eyeMat = new THREE.ShaderMaterial({
-    uniforms: moonU, fog: false,
-    vertexShader: `varying vec3 vObj; varying vec3 vN; varying vec3 vView;
-      void main(){ vObj = position; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vView = mv.xyz; gl_Position = projectionMatrix * mv; }`,
-    fragmentShader: GLSL_NOISE + `
-      uniform vec3 uKeyV; uniform float uPupil; uniform float uRed;
-      varying vec3 vObj; varying vec3 vN; varying vec3 vView;
-      void main(){
-        vec3 p = normalize(vObj);
-        float a = acos(clamp(p.z, -1.0, 1.0));
-        float ang = atan(p.y, p.x);
-        vec3 col = vec3(0.84, 0.78, 0.58);
-        float veins = (pow(1.0 - abs(vnoise(vec3(cos(ang) * 5.0, sin(ang) * 5.0, a * 7.0)) * 2.0 - 1.0), 7.0) + 0.6 * pow(1.0 - abs(vnoise(vec3(cos(ang) * 11.0, sin(ang) * 11.0, a * 13.0)) * 2.0 - 1.0), 9.0)) * smoothstep(0.42, 1.2, a);
-        col = mix(col, vec3(0.62, 0.02, 0.02), clamp(veins * 1.4 + smoothstep(1.1, 1.9, a) * 0.55 + uRed * 0.2, 0.0, 1.0));
-        float irisR = 0.37;
-        vec3 iris = mix(vec3(0.95, 0.72, 0.08), vec3(0.6, 0.2, 0.0), smoothstep(0.05, irisR, a));
-        iris *= 0.72 + 0.4 * vnoise(vec3(cos(ang) * 9.0, sin(ang) * 9.0, a * 18.0));
-        col = mix(col, iris, smoothstep(irisR + 0.02, irisR - 0.02, a));
-        col = mix(col, vec3(0.12, 0.04, 0.0), smoothstep(0.04, 0.0, abs(a - irisR)) * 0.85);
-        col = mix(col, vec3(0.0), smoothstep(uPupil + 0.015, uPupil - 0.015, a));
-        vec3 n = normalize(vN); vec3 l = normalize(uKeyV);
-        col *= 0.3 + 0.85 * max(dot(n, l), 0.0);
-        vec3 h = normalize(l + normalize(-vView));
-        col += vec3(1.0) * pow(max(dot(n, h), 0.0), 90.0) * 0.9;
-        gl_FragColor = vec4(col, 1.0);
-        #include <colorspace_fragment>
-      }`,
-  });
-  const lidMat = new THREE.MeshBasicMaterial({ color: '#2a1612', fog: false });
-  const eyes = [];
-  for (const sx of [-1, 1]) {
-    const d = new THREE.Vector3(sx * 0.32, 0.17, Math.sqrt(1 - 0.32 * 0.32 - 0.17 * 0.17)).normalize();
-    const eg = new THREE.Group(); eg.position.copy(d).multiplyScalar(0.845);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.165, 48, 32), eyeMat);
-    const lidPivot = new THREE.Group();
-    const lid = new THREE.Mesh(new THREE.SphereGeometry(0.174, 32, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), lidMat);
-    lidPivot.add(lid); lidPivot.rotation.x = -0.6; lidPivot.rotation.z = sx * 0.32;
-    eg.add(ball, lidPivot); group.add(eg);
-    eyes.push({ g: eg, lid: lidPivot, sx });
-  }
-  const toothM = new THREE.MeshLambertMaterial({ color: '#c9b98a', emissive: new THREE.Color('#1e150a'), fog: false });
-  const toothG = new THREE.CapsuleGeometry(0.5, 1.1, 4, 10); toothG.scale(1, 0.5, 0.55);
-  const upper = new THREE.Group(), lower = new THREE.Group();
-  const place = (grp, v, n, h) => {
-    for (let i = 0; i < n; i++) {
-      const u = lerp(-0.33, 0.33, i / (n - 1)) + rand(-0.008, 0.008);
-      const p = new THREE.Vector3(u, v + 0.012 * Math.cos(u * 22), 0); p.z = Math.sqrt(1 - p.x * p.x - p.y * p.y); p.normalize().multiplyScalar(0.935);
-      const t = new THREE.Mesh(toothG, toothM);
-      t.position.copy(p); t.lookAt(p.clone().multiplyScalar(2));
-      t.scale.set(0.052 * rand(0.8, 1.15), h * rand(0.8, 1.25), 0.05); t.rotateZ(rand(-0.14, 0.14)); t.rotateX(rand(-0.15, 0.15));
-      grp.add(t);
-    }
-  };
-  place(upper, -0.37, 13, 0.1); place(lower, -0.452, 12, 0.08);
-  group.add(upper, lower);
-  return { group, eyes, lower };
+  return { group, eyeL: new THREE.Vector3(-0.31, 0.12, 0.88), eyeR: new THREE.Vector3(0.31, 0.12, 0.88) };
 }
 
 /* =====================================================================
@@ -1878,6 +1904,7 @@ const shock = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48), shockMat); sho
 // batter animation state (springs)
 const BA = { mode: 'idle', t: 0, ang: BAT_REST, angV: 0, from: BAT_REST, to: BAT_HIT, lean: 0, leanV: 0, sq: 0, sqV: 0, hop: 0, hopV: 0, head: 0, headV: 0, reach: 1, swooshT: 9, shockT: 9 };
 
+{ const set = blob.setFace.bind(blob); blob.setFace = e => set(G.run && G.run.gear && G.run.gear.hollow && G.mode !== 'hub' ? 'hollow' : e); }
 const MOON = makeMoon(); MOON.group.visible = false; scene.add(MOON.group);
 
 /* =====================================================================
@@ -1925,7 +1952,7 @@ function computeField() {
     if (c.magnet) F.magnet *= c.magnet;
     if (c.sweet) F.sweet += c.sweet;
   }
-  const hm = runChar().helpMul || 1;
+  const hm = (runChar().helpMul || 1) * gearMul('helpMul');
   F.helpChance = clamp((0.22 + gSum * 0.11 + gearAdd('help')) * hm, 0, 0.88);
   F.airChance = clamp((0.05 + aSum * 0.15 + gearAdd('help') * 0.6) * hm, 0, 0.85);
   F.coinRate = clamp(F.coinRate, 0, 0.95);
@@ -2082,6 +2109,7 @@ function newRun() {
     char: save.sel, field: fd.id, rerolls: 0, offer: null, gearOffer: null, picked: null, endless: false, unlocked: [] };
   checkCombos();
   save.runs++; persist();
+  drawSign(startArea.userData.signC, startArea.userData.signTex, save.seenMoon && chance(0.5) ? 'LOOK UP' : 'BONK!');
   setFieldPalette(fd);
   openCamp();
 }
@@ -2102,12 +2130,14 @@ function rollCards(n) {
 }
 function rollGear() {
   const w = {};
-  for (const g of GEAR) w[g.id] = (g.rare ? 0.35 : 1) * (g.heart && G.run.hearts >= 5 ? 0 : 1);
+  for (const g of GEAR) if (!g.dread) w[g.id] = (g.rare ? 0.35 : 1) * (g.heart && G.run.hearts >= 5 ? 0 : 1);
   const out = [];
-  while (out.length < 3) { const id = weighted(w); out.push(id); delete w[id]; }
+  const dread = save.seenMoon ? GEAR.filter(g => g.dread && !gearN(g.id) && !(g.heartCost && G.run.hearts <= 1)) : [];
+  while (out.length < (dread.length ? 2 : 3)) { const id = weighted(w); out.push(id); delete w[id]; }
+  if (dread.length) out.push(pick(dread).id);
   return out.map(id => ({ id, sold: false }));
 }
-const gearCost = g => Math.round(g.base * Math.pow(g.grow, gearN(g.id)) * (1 + G.run.round * 0.06));
+const gearCost = g => g.dread ? 0 : Math.round(g.base * Math.pow(g.grow, gearN(g.id)) * (1 + G.run.round * 0.06));
 function comboFor(id) {
   const deck = new Set(G.run.deck);
   return COMBOS.find(c => !has(c.id) && ((c.a === id && deck.has(c.b)) || (c.b === id && deck.has(c.a))));
@@ -2122,9 +2152,16 @@ function renderDeck(el) {
   el.innerHTML = '';
   const counts = {};
   for (const id of G.run.deck) counts[id] = (counts[id] || 0) + 1;
-  for (const id in counts) el.appendChild(miniCard(id));
-  for (const id of G.run.combos) el.appendChild(miniCard(id, true));
-  for (const g of GEAR) for (let i = 0; i < gearN(g.id) && g.id !== 'heart'; i++) el.appendChild(Object.assign(miniCard('gear_' + g.id), { className: 'mini gear' }));
+  // one icon per kind, with a count when it stacks
+  const add = (id, n, cls) => {
+    const m = miniCard(id, cls === 'combo');
+    if (cls && cls !== 'combo') m.className = 'mini ' + cls;
+    if (n > 1) m.insertAdjacentHTML('beforeend', `<span class="cnt">×${n}</span>`);
+    el.appendChild(m);
+  };
+  for (const id in counts) add(id, counts[id]);
+  for (const id of G.run.combos) add(id, 1, 'combo');
+  for (const g of GEAR) if (gearN(g.id) && g.id !== 'heart') add('gear_' + g.id, gearN(g.id), g.dread ? 'gear dread' : 'gear');
 }
 function openCamp() {
   G.mode = 'draft';
@@ -2136,7 +2173,7 @@ function openCamp() {
   const roundTxt = run.round >= ROUNDS ? `Bonus round ${run.round - ROUNDS + 1}` : `Round ${run.round + 1} of ${ROUNDS}`;
   $('draftTitle').innerHTML = `${roundTxt}<span>Goal ${fmt(goal)} m</span>`;
   $('campHearts').innerHTML = heartsHTML(run.hearts, run.maxHearts);
-  if (!run.endless && run.round >= ROUNDS - 2) {
+  if (save.seenMoon && !run.endless && run.round >= ROUNDS - 2) {
     const last = run.round === ROUNDS - 1;
     $('draftTitle').insertAdjacentHTML('beforeend', `<span class="omen">${last ? 'The Moon is watching.' : 'Something is up there.'}</span>`);
     setTimeout(() => Sound.bell(last ? 2 : 1), 500);
@@ -2173,15 +2210,18 @@ function renderShop() {
   for (const it of run.gearOffer) {
     const g = GEAR.find(x => x.id === it.id), cost = gearCost(g);
     const owned = gearN(g.id);
-    const t = document.createElement('div'); t.className = 'gear' + (it.sold ? ' sold' : '');
+    const t = document.createElement('div'); t.className = 'gear' + (g.dread ? ' dread' : '') + (it.sold ? ' sold' : '');
     t.innerHTML = `<div class="gi" style="background-image:url(${G.thumbs['gear_' + g.id] || ''})"></div><div class="gt">${g.name}${owned ? ` <small>×${owned}</small>` : ''}</div><div class="gd">${g.desc}</div>`;
     const b = document.createElement('button');
     b.className = 'btn small';
-    b.innerHTML = it.sold ? 'Bought' : `<i class="coin-ico"></i>${cost}`;
-    b.disabled = it.sold || run.coins < cost;
+    const heartOk = !g.heartCost || run.hearts > g.heartCost;
+    b.innerHTML = it.sold ? (g.dread ? 'Taken' : 'Bought') : g.dread ? (g.heartCost ? 'Give a heart' : 'Take it') : `<i class="coin-ico"></i>${cost}`;
+    b.disabled = it.sold || run.coins < cost || !heartOk;
     b.onclick = () => {
-      if (it.sold || run.coins < cost) { Sound.nope(); return; }
+      if (it.sold || run.coins < cost || !heartOk) { Sound.nope(); return; }
       run.coins -= cost; run.gear[g.id] = owned + 1; it.sold = true;
+      if (g.heartCost) { run.hearts -= g.heartCost; $('campHearts').innerHTML = heartsHTML(run.hearts, run.maxHearts); Sound.thump(); }
+      if (g.dread) { Sound.whisper(); flash(0.15, 300); }
       if (g.heart) { run.hearts++; run.maxHearts = Math.max(run.maxHearts, run.hearts); $('campHearts').innerHTML = heartsHTML(run.hearts, run.maxHearts); }
       Sound.buy(); renderShop(); renderDeck($('draftDeck'));
       const tile = $('gearRow').children[run.gearOffer.indexOf(it)]; tile && tile.animate([{ transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'cubic-bezier(.2,1.6,.4,1)' });
@@ -2300,7 +2340,9 @@ function startPitch(keepAngle) {
   const tC = clamp(0.9 - G.run.round * 0.012, 0.78, 0.9) + rand(-0.05, 0.05);
   const x0 = 5.4;
   const p = G.pitch = { phase: keepAngle != null ? 'hop' : 'aim', angle: keepAngle, aimT: rand(0, 1), t: -0.45, tC, x0, from: keepAngle != null ? 9.6 : 7.2,
-    vx: (CONTACT.x - x0) / tC, vy0: 0, swung: false, missT: -1, res: null };
+    vx: (CONTACT.x - x0) / tC, vy0: 0, swung: false, missT: -1, res: null, autoOff: rand(-0.06, 0.06) };
+  if (gearN('smile')) { batter.setFace('grin'); batter.faceT = 99; }
+  else if (save.seenMoon && chance(0.3)) { batter.setFace('hollow'); batter.faceT = 2.5; }
   p.vy0 = (CONTACT.y - P.R + 0.5 * 16 * tC * tC) / tC;
   G.b = newBlobState(); G.b.x = 9.6; G.b.y = P.R;
   blob.setFace('idle');
@@ -2358,7 +2400,10 @@ function updatePitch(dt) {
     if (!p.landedPast && b.y <= P.R && tt > p.tC) { p.landedPast = true; b.sqv -= 6; Sound.squish(); }
     const W = windows(), K = 2.4 / p.tC;
     const show = !p.swung;
-    ring.visible = target.visible = targetCore.visible = show;
+    const blind = gearN('blindfold') > 0;
+    ring.visible = target.visible = targetCore.visible = show && !blind;
+    if (blind && !p.cued && tt >= p.tC) { p.cued = true; Sound.thump(); }
+    if (gearN('smile') && !p.swung && tt >= p.tC + p.autoOff) { tapPitch(true); return; }
     if (show) {
       const R0 = P.R * 1.15;
       target.scale.setScalar(R0); targetCore.scale.setScalar(R0);
@@ -2380,7 +2425,7 @@ function showAimTag(text, x, y) {
   _pv.set(x, y, 1).project(camera);
   tag.style.transform = `translate(${(_pv.x * 0.5 + 0.5) * glCanvas.clientWidth}px,${(-_pv.y * 0.5 + 0.5) * glCanvas.clientHeight}px) translate(-50%,-50%)`;
 }
-function tapPitch() {
+function tapPitch(auto = false) {
   const p = G.pitch;
   if (G.mode !== 'pitch' || !p) return;
   if (p.phase === 'aim') {
@@ -2392,6 +2437,7 @@ function tapPitch() {
     return;
   }
   if (p.swung) return;
+  if (gearN('smile') && !auto) return; // the batter swings for you now
   const tt = p.t - HOP * 2;
   if (tt < -0.15) return; // still hopping in
   const W = windows();
@@ -2544,8 +2590,8 @@ function updateFlight(dt) {
   // passing the goal flag
   const goal = goalFor(G.run.round, G.run.field);
   if (G.run.round === ROUNDS - 1 && !G.run.endless) {
-    for (const th of [2000, 2600]) if (b.x > th && !b['bell' + th]) { b['bell' + th] = true; Sound.bell(1); }
-    if (!b.passedGoal && b.x > goal) { b.passedGoal = true; startEnding(); return; }
+    for (const th of [2600, 2900]) if (b.x > th && !b['bell' + th]) { b['bell' + th] = true; Sound.bell(1); }
+    if (!b.passedGoal && b.x > goal) { b.passedGoal = true; moonU.uFade.value = 0; startEnding(); return; }
   }
   if (!b.passedGoal && b.x > goal) {
     b.passedGoal = true;
@@ -2657,6 +2703,14 @@ function spawnObj(type, x, y = 0) {
   mesh.position.set(x, y, 0);
   mesh.scale.setScalar(0.001);
   if (!air) { const sh = makeShadow(r * 0.9); sh.position.set(0, 0.03, 0); mesh.add(sh); }
+  const HOLLOW_AT = { mushroom: [0, 1.4, 1.22, 1.1], frog: [0, 0.72, 0.8, 0.95], snail: [-0.12, 0.66, 0.68, 0.7], bush: [0, 0.78, 0.95, 1.1] };
+  if (save.seenMoon && G.run && chance(0.3)) {
+    if (HOLLOW_AT[o.type]) {
+      const [hx, hy, hz, hs] = HOLLOW_AT[o.type];
+      const f = new THREE.Mesh(geo('facePlane', () => new THREE.PlaneGeometry(1.5, 1.5)), new THREE.MeshBasicMaterial({ map: face('hollow'), transparent: true, depthWrite: false }));
+      f.position.set(hx, hy, hz); f.scale.setScalar(hs); f.renderOrder = 2; mesh.add(f);
+    } else if (o.type === 'cloud') mesh.traverse(c => { if (c.material && c.material.map === face('blink')) c.material.map = face('hollow'); });
+  }
   scene.add(mesh);
   G.objs.push(o);
   return o;
@@ -2911,6 +2965,7 @@ function updateObjects(dt, camX) {
       if (o.type === 'rocket' && chance(dt * 40)) parts.spawn(m.position.x, m.position.y, 0, rand(-2, 2), rand(-4, -1), 0, { color: pick([COLS.gold, COLS.coral, COLS.white]), size: 0.6, life: 0.5, shape: 1 });
     }
     if (s >= 0) m.scale.setScalar(s);
+    if (!o.air) { m.rotation.y = damp(m.rotation.y, G.stare > 0 ? Math.PI * 0.92 : 0, 5, dt); m.rotation.x = damp(m.rotation.x, G.stare > 0 ? -0.25 : 0, 5, dt); }
     if (o.type === 'bird' && o.used && !o.carrying) {/* flying off */}
     if (o.fly && o.carrying) o.carrying = false;
     if (m.position.x < camX - 90 || m.position.y > G.cam.y + 200) { scene.remove(m); G.objs.splice(i, 1); }
@@ -3144,47 +3199,55 @@ function horrorTarget() {
   if (G.mode === 'ending') return 1;
   const run = G.run;
   if (!run) return save.wins > 0 && (G.mode === 'hub' || G.mode === 'title') ? 0.05 : 0;
-  let h = run.endless ? 0.3 : run.round === ROUNDS - 1 ? 0.26 : run.round === ROUNDS - 2 ? 0.13 : 0;
-  if (G.mode === 'flight' || G.mode === 'landed' || G.mode === 'result' || G.mode === 'summary') h = Math.max(h, smooth(1400, MOON_AT, G.b.x));
-  return h;
+  // it starts as a tiny pale daytime moon you could easily miss
+  let h = run.endless ? 0.3 : run.round === ROUNDS - 1 ? 0.06 : run.round === ROUNDS - 2 ? 0.03 : 0;
+  if (save.seenMoon && !run.endless) h += 0.04;
+  if (gearN('shard')) h += 0.25;
+  if (G.mode === 'flight' || G.mode === 'landed' || G.mode === 'result' || G.mode === 'summary') h = Math.max(h, Math.pow(smooth(1600, MOON_AT, G.b.x), 1.5));
+  return Math.min(1, h);
 }
 let vignetteShown = -1;
 function updateHorror(dt) {
   G.horror = G.mode === 'ending' ? 1 : damp(G.horror, horrorTarget(), 1.4, dt);
   Sound.setHorror(G.horror);
   const v = Math.round(G.horror * 100) / 100;
-  if (v !== vignetteShown) { vignetteShown = v; $('vignette').style.opacity = Math.min(1, v * 1.05); }
+  if (v !== vignetteShown) { vignetteShown = v; $('vignette').style.opacity = clamp((v - 0.3) * 1.5, 0, 1); }
+  if (!save.seenMoon && G.horror > 0.75 && (G.mode === 'flight' || G.mode === 'ending')) { save.seenMoon = true; persist(); }
 }
 const _mf = new THREE.Vector3(), _mu = new THREE.Vector3(), _mr = new THREE.Vector3(), _mt = new THREE.Vector3(), _key = new THREE.Vector3();
-const eyeAim = new THREE.Vector3(), saccOff = new THREE.Vector3();
-let sacc = 0;
+const gaze = new THREE.Vector3(), gazeTarget = new THREE.Vector3(), _dust = new THREE.Vector3();
+const DUST = new THREE.Color('#8f8a82');
+let moonTilt = -0.12;
 function updateMoon(dt) {
+  if (G.moonFreeze) return;
   const h = G.horror, g = MOON.group;
   g.visible = h > 0.012 || G.mode === 'ending';
   if (!g.visible) return;
   camera.updateMatrixWorld();
   if (G.mode !== 'ending') {
-    // it hangs in the upper sky ahead of you, lower and bigger the closer you get
+    // it hangs in the upper sky ahead of you; its lower edge stays just above the middle of the view
     camera.getWorldDirection(_mf);
     _mu.set(0, 1, 0).applyQuaternion(camera.quaternion);
     _mr.crossVectors(_mf, _mu);
-    // its lower edge always stays a little above the middle of the view, so it looms over the blob
-    const dist = lerp(1600, 1100, h), S = lerp(70, 330, Math.pow(h, 1.3));
+    const dist = lerp(1600, 1100, h), S = lerp(10, 330, Math.pow(h, 1.3));
+    moonU.uFade.value = 0.8 * (1 - smooth(0.1, 0.55, h));
     const e = Math.max(THREE.MathUtils.degToRad(15), Math.atan(S / dist) + THREE.MathUtils.degToRad(3));
     g.position.copy(camera.position).addScaledVector(_mf, Math.cos(e) * dist).addScaledVector(_mu, Math.sin(e) * dist).addScaledVector(_mr, dist * 0.04);
     g.scale.setScalar(S);
-    g.lookAt(camera.position); g.rotateZ(-0.14);
-    moonU.uJaw.value = 0.03 + 0.025 * Math.sin(G.time * 0.7);
-    // the eyes follow the blob, with small twitches
-    sacc -= dt;
-    if (sacc <= 0) { sacc = rand(0.5, 1.6); saccOff.set(rand(-1, 1), rand(-1, 1), 0).multiplyScalar(chance(0.65) ? 0 : 3); }
-    _mt.set(G.b.x, G.b.y, G.b.z || 0).add(saccOff);
-    eyeAim.lerp(_mt, 1 - Math.exp(-dt * 12));
+    // no eyes: the whole Moon turns, very slowly, toward the blob
+    gazeTarget.copy(camera.position).lerp(_mt.set(G.b.x, G.b.y, G.b.z || 0), 0.6);
+    if (gaze.lengthSq() === 0) gaze.copy(gazeTarget);
   }
-  for (const e of MOON.eyes) e.g.lookAt(eyeAim);
-  MOON.lower.position.y = -moonU.uJaw.value * 0.12;
+  gaze.lerp(gazeTarget, 1 - Math.exp(-dt * 0.7));
+  g.lookAt(gaze); g.rotateZ(moonTilt);
   _key.set(0.12, -0.82, 0.55).applyQuaternion(g.quaternion).normalize().transformDirection(camera.matrixWorldInverse);
   moonU.uKeyV.value.copy(_key);
+  // ash trickles out of the hollows as it gets close
+  if (h > 0.45 && chance(dt * 24 * h)) {
+    const S = g.scale.x, eye = chance(0.5) ? MOON.eyeL : MOON.eyeR;
+    _dust.set(eye.x + rand(-0.08, 0.08), eye.y - 0.13, 0.93).applyMatrix4(g.matrixWorld);
+    parts.spawn(_dust.x, _dust.y, _dust.z, rand(-0.01, 0.01) * S, -rand(0.02, 0.05) * S, 0, { color: DUST, size: S * rand(0.006, 0.014), life: rand(2.5, 4.5), drag: 0.2, grav: S * 0.004, shape: 0 });
+  }
 }
 
 const E = { t: 0 };
@@ -3197,13 +3260,13 @@ function startEnding() {
   E.from = new THREE.Vector3(b.x, b.y, 0);
   E.camFrom = camera.position.clone();
   E.lookFrom = new THREE.Vector3(G.cam.lx, G.cam.ly, 0);
-  // freeze the Moon where it hangs
+  // the Moon stops where it hangs
   E.S = MOON.group.scale.x;
   E.center = MOON.group.position.clone();
-  E.mouth = MOON.group.localToWorld(new THREE.Vector3(0, -0.41, 0.95));
-  E.front = new THREE.Vector3(0, 0, 1).applyQuaternion(MOON.group.quaternion);
-  E.up = new THREE.Vector3(0, 1, 0).applyQuaternion(MOON.group.quaternion);
+  MOON.group.updateMatrixWorld();
+  E.socket = MOON.eyeL.clone().applyMatrix4(MOON.group.matrixWorld);
   E.camHold = new THREE.Vector3(b.x - 5, b.y + 1.2, 8.5);
+  gazeTarget.set(b.x, b.y, 0);
   showHud(false); $('btnFast').hidden = true;
   G.fast = false; G.slowmo = 0; G.hitstop = 0;
   clearFloaters();
@@ -3220,45 +3283,49 @@ function updateEnding(dt) {
     b.x = E.from.x + t * 0.8; b.y = E.from.y + Math.sin(t * 3) * 0.15;
     camera.position.lerpVectors(E.camFrom, E.camHold, k);
     _el.lerpVectors(E.lookFrom, _ev.set(b.x, b.y, 0), k);
-    eyeAim.set(b.x, b.y, 0);
-  } else if (t < 4.2) {
-    // then it is pulled up, into the mouth
+    gazeTarget.set(b.x, b.y, 0);
+  } else if (t < 4.4) {
+    // it is drawn up, into the dark of a socket
     if (!E.pullFrom) E.pullFrom = new THREE.Vector3(b.x, b.y, 0);
-    const k = (t - 1.4) / 2.8, e = k * k * k;
-    _ev.lerpVectors(E.pullFrom, E.mouth, e);
+    const k = (t - 1.4) / 3, e = k * k * k;
+    _ev.lerpVectors(E.pullFrom, E.socket, e);
     b.x = _ev.x; b.y = _ev.y; b.z = _ev.z;
     camera.position.lerpVectors(E.camHold, E.center, 0.04 * k);
-    _el.set(b.x, b.y, b.z).lerp(E.mouth, smooth(0, 0.55, k));
-    moonU.uJaw.value = 0.03 + 0.62 * smooth(2.3, 4.0, t);
-    eyeAim.set(b.x, b.y, b.z);
+    _el.set(b.x, b.y, b.z).lerp(E.socket, smooth(0, 0.55, k));
+    gazeTarget.set(b.x, b.y, b.z);
     shake = k * 0.05;
-  } else if (t < 5.8) {
-    if (!E.gone) { E.gone = true; blob.root.visible = blobShadow.visible = false; Sound.chomp(); }
-    moonU.uJaw.value = damp(moonU.uJaw.value, 0, 20, dt);
-    // after eating, its eyes slowly turn to you
-    eyeAim.lerpVectors(E.mouth, camera.position, smooth(4.5, 5.6, t));
-    _el.copy(E.mouth);
-    shake = 0.03;
-  } else if (t < 7.3) {
+  } else if (t < 6.2) {
+    if (!E.gone) { E.gone = true; blob.root.visible = blobShadow.visible = false; Sound.swallowed(); }
+    // then, slowly, it turns to you and tilts its head
+    gazeTarget.copy(camera.position);
+    moonTilt = lerp(-0.12, -0.32, smooth(4.6, 6.0, t));
+    _el.lerpVectors(E.socket, E.center, smooth(4.4, 5.6, t));
+    shake = 0.02;
+  } else if (t < 7.6) {
     if (E.stage < 1) { E.stage = 1; cut(true); Sound.silence(true); }
-    if (t > 6.5 && E.stage < 2) { E.stage = 2; Sound.breath(); }
-  } else if (t < 8.4) {
+    if (t > 6.9 && E.stage < 2) { E.stage = 2; Sound.breath(); }
+  } else if (t < 8.6) {
     if (E.stage < 3) {
       E.stage = 3; cut(false);
-      moonU.uJaw.value = 1; moonU.uRed.value = 0.55; moonU.uPupil.value = 0.045; moonU.uGlow.value = 0.32;
-      Sound.roar();
-      $('redwash').animate([{ opacity: 0.4 }, { opacity: 0.12 }], { duration: 1100, fill: 'forwards' });
+      moonU.uRed.value = 0.35; moonU.uGlow.value = 0.28;
+      gaze.copy(camera.position); gazeTarget.copy(camera.position);
+      MOON.group.lookAt(gaze); MOON.group.rotateZ(moonTilt); MOON.group.updateMatrixWorld();
+      E.front = new THREE.Vector3(0, 0, 1).applyQuaternion(MOON.group.quaternion);
+      E.up = new THREE.Vector3(0, 1, 0).applyQuaternion(MOON.group.quaternion);
+      E.fit = 1 + Math.max(0.55, 0.36 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect));
+      Sound.groan();
+      $('redwash').animate([{ opacity: 0.35 }, { opacity: 0.1 }], { duration: 1000, fill: 'forwards' });
     }
-    const k = easeOutCubic((t - 7.3) / 1.1);
-    // fill the screen with the face, but keep both eyes in frame on narrow screens
-    const fit = 1 + Math.max(0.55, 0.38 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect));
-    camera.position.copy(E.center).addScaledVector(E.front, S * fit * lerp(1.1, 0.95, k)).addScaledVector(E.up, -S * 0.04);
-    _el.copy(E.center).addScaledVector(E.front, S * 0.85).addScaledVector(E.up, -S * 0.1);
-    eyeAim.copy(camera.position);
-    shake = S * 0.012 * (1 - k * 0.5);
-  } else if (t < 11.6) {
+    // it lunges, until one hollow is all you can see
+    const k = (t - 7.6) / 1.0, e = k * k;
+    _ev.copy(E.center).addScaledVector(E.front, S * E.fit * 1.25).addScaledVector(E.up, -S * 0.04);
+    _el.copy(MOON.eyeL).applyMatrix4(MOON.group.matrixWorld);
+    camera.position.lerpVectors(_ev, _el, e * 0.93);
+    _el.lerpVectors(_mt.copy(E.center).addScaledVector(E.front, S * 0.85), _el, smooth(0.2, 0.8, k));
+    shake = S * 0.01 * (0.4 + k);
+  } else if (t < 12) {
     if (E.stage < 4) { E.stage = 4; cut(true); Sound.scareCut(); $('redwash').getAnimations().forEach(a => a.cancel()); }
-    if (t > 9.0 && E.stage < 5) { E.stage = 5; $('scareText').textContent = 'it was always going to fall.'; $('scareText').style.opacity = 1; }
+    if (t > 9.3 && E.stage < 5) { E.stage = 5; $('scareText').textContent = 'it has always been there.'; $('scareText').style.opacity = 1; }
   } else { finishEnding(); return; }
   if (E.stage === 1 || E.stage === 2 || E.stage >= 4) return;
   camera.position.x += rand(-shake, shake); camera.position.y += rand(-shake, shake);
@@ -3268,7 +3335,7 @@ function updateEnding(dt) {
 function finishEnding() {
   $('scareText').style.opacity = 0;
   Sound.silence(false); Sound.musicStop(false);
-  moonU.uRed.value = 0; moonU.uPupil.value = 0.065; moonU.uGlow.value = 0.12;
+  moonU.uRed.value = 0; moonU.uGlow.value = 0.1; moonTilt = -0.12;
   blob.root.visible = blobShadow.visible = true;
   const b = G.b;
   b.x = E.dist; b.y = G.P.R; b.z = 0; b.vx = b.vy = 0; b.faceT = 99; blob.setFace('dizzy');
@@ -3278,14 +3345,44 @@ function finishEnding() {
   endSwing(E.dist);
 }
 
+/* =====================================================================
+   WRONGNESS — once you have seen the Moon, things keep going wrong
+   ===================================================================== */
+let wrongNext = 5;
+function updateWrong(dt) {
+  if (G.stare > 0) G.stare -= dt;
+  if (!save.seenMoon || !['hub', 'draft', 'pitch', 'flight', 'landed', 'result'].includes(G.mode)) return;
+  wrongNext -= dt;
+  if (wrongNext > 0) return;
+  wrongNext = rand(3.5, 8);
+  const m = G.mode, ev = ['flicker', 'whisper', 'skyflash', 'blob'];
+  if (m === 'hub' || m === 'draft' || m === 'pitch') ev.push('batter', 'batter');
+  if (m === 'pitch' && G.pitch && G.pitch.phase === 'aim') ev.push('selfswing', 'selfswing');
+  if (m === 'pitch' || m === 'flight') ev.push('stare', 'stare');
+  if (m === 'flight') ev.push('hud', 'music');
+  if (m === 'draft') ev.push('camptext', 'music');
+  switch (pick(ev)) {
+    case 'flicker': G.flick = 0.45; Sound.buzz(); break;
+    case 'whisper': Sound.whisper(); break;
+    case 'skyflash': G.skyFlash = 0.12; break;
+    case 'blob': if (G.mode !== 'landed') { blob.setFace('hollow'); G.b.faceT = 0.3; } break;
+    case 'batter': batter.setFace('hollow'); batter.faceT = 1.6; break;
+    case 'selfswing': if (BA.mode === 'idle') { swingMallet(BAT_HIT); batter.setFace('hollow'); batter.faceT = 1.4; } break;
+    case 'stare': G.stare = 2.6; Sound.whisper(); break;
+    case 'hud': G.hudGlitch = 0.45; break;
+    case 'music': Sound.musicStop(true); setTimeout(() => { if (G.mode !== 'ending') Sound.musicStop(false); }, 1700); break;
+    case 'camptext': { const el = $('draftSub'), was = el.textContent; el.textContent = 'it is watching'; setTimeout(() => { if (el.textContent === 'it is watching') el.textContent = was; }, 700); break; }
+  }
+}
+
 /* speed lines on a 2D overlay */
 const fx = $('fx'), fxg = fx.getContext('2d');
 const lines = Array.from({ length: 28 }, () => ({ x: Math.random(), y: Math.random(), l: rand(0.08, 0.25), s: rand(0.8, 1.6) }));
 function drawSpeedLines(dt) {
   const w = fx.width, h = fx.height;
   fxg.clearRect(0, 0, w, h);
-  if (G.horror > 0.2) {
-    const ga = (G.horror - 0.2) * 0.16;
+  if (G.horror > 0.35) {
+    const ga = (G.horror - 0.35) * 0.2;
     for (let i = 0; i < 220; i++) { fxg.fillStyle = i & 1 ? `rgba(0,0,0,${ga})` : `rgba(255,235,220,${ga * 0.6})`; fxg.fillRect(Math.random() * w, Math.random() * h, 2 * PR, 2 * PR); }
   }
   const b = G.b, sp = Math.hypot(b.vx, b.vy);
@@ -3375,11 +3472,16 @@ function frame(now) {
   ground.position.x = G.cam.x;
   updateScenery(G.cam.x, G.cam.y, false);
   updateSigns(G.cam.x);
-  if (!G.noBiome) applyBiome(Math.max(0, G.cam.lx), G.horror);
+  if (!G.noBiome) applyBiome(Math.max(0, G.cam.lx), clamp((G.horror - 0.12) / 0.88, 0, 1));
+  sunLight.intensity = 2.3;
+  if (G.flick > 0) { G.flick -= dt; const f = Math.random() < 0.5 ? 0.08 : 1; hemi.intensity *= f; sunLight.intensity *= f; }
+  if (G.skyFlash > 0) { G.skyFlash -= dt; skyU.uTop.value.set('#000000'); skyU.uBot.value.set('#2a0006'); scene.fog.color.set('#1a0004'); }
+  updateWrong(dt);
   updateFloaters(dt);
   drawSpeedLines(dt);
   if (G.mode === 'flight' || G.mode === 'landed') {
-    $('hudDist').innerHTML = `${fmtDist(Math.max(0, G.b.x))}<small>m</small>`;
+    if (G.hudGlitch > 0) { G.hudGlitch -= dt; $('hudDist').textContent = 'LOOK UP'; }
+    else $('hudDist').innerHTML = `${fmtDist(Math.max(0, G.b.x))}<small>m</small>`;
     $('hudCoins').textContent = fmt(G.run.coins + Math.floor(G.b.coins * gearMul('coin')));
   } else if (G.mode === 'pitch') $('hudDist').innerHTML = `0<small>m</small>`;
   // rain ambience

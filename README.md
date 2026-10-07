@@ -17,12 +17,26 @@ Two taps (finger, mouse or Space), each doing one thing:
 - Reach the Moon to win, then keep going into bonus rounds if you like.
 
 ## The Moon
-The Moon has a face, and it is not friendly. It shows up in the sky in rounds 9 and 10, and on any flight past about 1.4 km. It gets lower and bigger the further you go, and its eyes track your blob. As it gets closer:
-- The sky goes dark red and the colour drains from the field.
-- The music slows into a sour music box, with a drone and a heartbeat underneath.
-- A bell tolls, and your blob panics.
+Something has always been up there. At first it is a tiny pale daytime moon you could easily miss. Fly far enough on the late rounds and it grows: an ancient, weathered face with no eyes and no mouth, only two hollow sockets darker than the night, slowly turning to follow your blob as ash trickles out of them. As it gets closer:
+- The sky turns dark red and the colour drains from the field.
+- The music slows into a sour music box, with a drone, a heartbeat and a tolling bell underneath.
+- Your blob panics.
 
 Reaching it on the final round triggers the ending.
+
+**After you have seen it properly, it doesn't go away.** In every later run:
+- Lights flicker, the sky flashes black, the music drops out and something whispers.
+- The batter's eyes go hollow, and sometimes it swings on its own.
+- The field turns its back to look up at the sky, and some critters wear hollow faces.
+- The HUD and the sign sometimes read LOOK UP.
+
+The camp shop also starts offering frightening gear. Each piece is free or costs a heart, and each takes something:
+- *A Piece of the Moon* hits much harder, but the Moon is always closer.
+- *Offering* trades a heart for power and coins.
+- *Blindfold* hides the timing rings; you listen for the beat instead.
+- *The Batter's Smile* swings for you and never misses.
+- *Ash* lowers gravity, and nothing helpful grows in the field.
+- *Hollow* makes every bounce keep everything, and your blob's face never comes back.
 
 ## Between runs (sidegrades only)
 No permanent stat upgrades. Milestones unlock:
@@ -40,5 +54,6 @@ The Combo Book remembers every combo you have discovered.
 | `PITCH` | Angle fan and needle, hop-in path, timing rings and power from timing. |
 | `updateBatter` | Spring-driven wind-up, swing, impact squash, follow-through and lunge. |
 | `FLIGHT` | Fixed-substep physics, spawning on the predicted landing spot, collisions and helper effects. |
-| `THE MOON` | Shader-sculpted face, bloodshot tracking eyes, teeth and jaw (`makeMoon`); dread level, sky placement and the ending sequence (`updateMoon`, `updateEnding`). |
+| `THE MOON` | Shader-sculpted faceless moon with hollow sockets, fissures and grime streaks (`makeMoon`); dread level, sky placement, slow gaze, ash and the ending (`updateMoon`, `updateEnding`). |
+| `WRONGNESS` | Random unsettling events once the Moon has been seen (`updateWrong`). |
 | `RUN FLOW` / `RESULTS` / `HUB` | Camp (card + gear shop), round results and hearts, run summary, unlock checks, character and field select. |
