@@ -2,7 +2,9 @@
 
 A cute roguelike about bonking a squishy blob as far as possible, built with three.js. Each run starts from zero. Build up a field and gear over ten rounds and try to bonk your blob all the way to the Moon.
 
-Everything lives in one self-contained file: [`index.html`](index.html). Open it in a browser (three.js r160 loads from cdnjs). All models, faces, icons, music and sound effects are generated at runtime. Unlocks save to the browser's local storage.
+**[Play it in your browser](https://zulbiabamiyeh.github.io/Colour/)** (desktop or phone).
+
+Everything lives in one self-contained file: [`index.html`](index.html), served as-is by GitHub Pages (`.nojekyll` turns off Jekyll processing). To run it locally, open the file in a browser (three.js r160 loads from cdnjs). All models, faces, icons, music and sound effects are generated at runtime. Unlocks save to the browser's local storage.
 
 ## Bonking
 Two taps (finger, mouse or Space), each doing one thing:
