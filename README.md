@@ -16,6 +16,14 @@ Two taps (finger, mouse or Space), each doing one thing:
   - **Gear:** bought with this run's coins. Most gear trades something away, e.g. *Bigger Mallet* hits harder but shrinks the timing window, and *Lead Boots* hit hard but bounce poorly.
 - Reach the Moon to win, then keep going into bonus rounds if you like.
 
+## The Moon
+The Moon has a face, and it is not friendly. It shows up in the sky in rounds 9 and 10, and on any flight past about 1.4 km. It gets lower and bigger the further you go, and its eyes track your blob. As it gets closer:
+- The sky goes dark red and the colour drains from the field.
+- The music slows into a sour music box, with a drone and a heartbeat underneath.
+- A bell tolls, and your blob panics.
+
+Reaching it on the final round triggers the ending.
+
 ## Between runs (sidegrades only)
 No permanent stat upgrades. Milestones unlock:
 - **Blobs**, each with a different feel: Plum (heavy), Puff (floaty), Boing (springy), Lucky (rich).
@@ -32,4 +40,5 @@ The Combo Book remembers every combo you have discovered.
 | `PITCH` | Angle fan and needle, hop-in path, timing rings and power from timing. |
 | `updateBatter` | Spring-driven wind-up, swing, impact squash, follow-through and lunge. |
 | `FLIGHT` | Fixed-substep physics, spawning on the predicted landing spot, collisions and helper effects. |
+| `THE MOON` | Shader-sculpted face, bloodshot tracking eyes, teeth and jaw (`makeMoon`); dread level, sky placement and the ending sequence (`updateMoon`, `updateEnding`). |
 | `RUN FLOW` / `RESULTS` / `HUB` | Camp (card + gear shop), round results and hearts, run summary, unlock checks, character and field select. |
